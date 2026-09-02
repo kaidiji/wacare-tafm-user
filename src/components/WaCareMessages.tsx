@@ -359,7 +359,7 @@ export const WaCareMessages: React.FC<Props> = ({
   const currentMessages = selectedChat ? messagesMap[selectedChat] || [] : [];
 
   return (
-    <div className="min-h-full bg-white flex flex-col justify-between select-none relative">
+    <div className="h-full bg-white flex flex-col justify-between overflow-hidden relative">
       {/* 1. CHAT MESSAGE CENTER LIST VIEW */}
       {selectedChat === null && (
         <div className="flex-1 flex flex-col min-h-0 bg-white">
@@ -424,7 +424,7 @@ export const WaCareMessages: React.FC<Props> = ({
           </div>
 
           {/* Channel Chat List */}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+          <div className="flex-1 overflow-y-auto min-h-0 touch-pan-y divide-y divide-slate-100">
             {displayedChannels.map((channel) => (
               <div
                 key={channel.id}
@@ -506,7 +506,7 @@ export const WaCareMessages: React.FC<Props> = ({
           </div>
 
           {/* Chat Messages Thread Body */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-3.5">
+          <div className="flex-1 p-4 overflow-y-auto min-h-0 touch-pan-y space-y-3.5">
             {currentMessages.map((m) => {
               if (m.sender === 'user') {
                 return (

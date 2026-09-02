@@ -78,7 +78,7 @@ export const Scr03Home: React.FC<Props> = ({
   };
 
   return (
-    <div className="min-h-full bg-slate-100 flex flex-col justify-between select-none">
+    <div className="h-full bg-slate-100 flex flex-col justify-between overflow-hidden">
       {/* Top Search Header Bar */}
       <div className="bg-slate-700/90 backdrop-blur-xs text-white px-3.5 pt-3 pb-3 sticky top-0 z-20 shadow-xs">
         <div className="flex items-center gap-2">
@@ -111,7 +111,7 @@ export const Scr03Home: React.FC<Props> = ({
       </div>
 
       {/* Main Scrollable Content */}
-      <div className="flex-1 overflow-y-auto pb-24 space-y-5">
+      <div className="flex-1 overflow-y-auto min-h-0 touch-pan-y pb-24 space-y-5">
         
         {/* Banner Carousel Area */}
         <div className="pt-3 px-1 relative group">

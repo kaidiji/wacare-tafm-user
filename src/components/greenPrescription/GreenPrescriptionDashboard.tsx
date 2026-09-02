@@ -23,6 +23,7 @@ import {
   Search,
   Filter,
   MoreVertical,
+  Film,
 } from 'lucide-react';
 import { VideoTask } from './greenPrescriptionData';
 import { ScreenId } from '../../types';
@@ -79,10 +80,19 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   // State for data analysis interval switcher (matching IMG_9026.PNG)
   const [analysisInterval, setAnalysisInterval] = useState<'week' | 'month' | 'quarter'>('week');
 
+  // State for expanded week cards in data analysis view (matching IMG_9026.PNG)
+  const [expandedWeekIds, setExpandedWeekIds] = useState<Record<string, boolean>>({
+    w5: true, // Default expand current week
+  });
+
   // State for raw data filter & detail modal (matching IMG_9040.PNG format)
   const [rawDataCategoryFilter, setRawDataCategoryFilter] = useState<string>('ALL');
   const [showRawFilterDropdown, setShowRawFilterDropdown] = useState<boolean>(false);
   const [selectedRawDataModalWeekIndex, setSelectedRawDataModalWeekIndex] = useState<number | null>(null);
+
+  // Modal states for 數據執行紀錄清單 兩大項
+  const [selectedLifestyleModalRecord, setSelectedLifestyleModalRecord] = useState<any | null>(null);
+  const [selectedVideoModalRecord, setSelectedVideoModalRecord] = useState<any | null>(null);
 
   // State for expanding/collapsing data analysis categories (matching IMG_9026.PNG format)
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
@@ -339,138 +349,622 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   };
 
   // -------------------------------------------------------------
-  // VIEW: 健康數據分析詳細頁面 (參考 IMG_9040.PNG 精確設計：折線圖 + 每週 Raw Data 表)
+  // VIEW: 健康數據分析詳細頁面 (符合最新需求：兩大項：生活型態處方 + 衛教影片任務)
   // -------------------------------------------------------------
   if (showStatsDetailView) {
     const rawWeeklyRecordsList = [
       {
         id: 'w5',
-        weekTitle: '本週',
-        dateStr: '2026-08-31 16:40 午間',
-        dateRange: '09/01 ~ 09/07',
+        dateRange: '2026/08/25 至 2026/08/31',
         prescriptionCompleted: completedPrescriptionItems,
-        prescriptionTotal: totalPrescriptionItems > 0 ? totalPrescriptionItems : 15,
+        prescriptionTotal: 10,
         videoCompleted: completedCount,
         videoTotal: weeklyTarget,
         percent: prescriptionProgressPercent,
-        statusText: prescriptionProgressPercent >= 75 ? '正常' : prescriptionProgressPercent >= 60 ? '普通' : '留意',
-        statusType: prescriptionProgressPercent >= 75 ? 'normal' : prescriptionProgressPercent >= 60 ? 'warning' : 'danger',
-        breakdown: [
-          { key: 'sleep', name: '睡眠處方', completed: Math.min(3, completedPrescriptionItems), total: 3 },
-          { key: 'stress', name: '壓力管理處方', completed: Math.min(2, Math.max(0, completedPrescriptionItems - 3)), total: 2 },
-          { key: 'diet', name: '飲食習慣處方', completed: Math.min(3, Math.max(0, completedPrescriptionItems - 5)), total: 3 },
-          { key: 'exercise', name: '運動處方', completed: Math.min(2, Math.max(0, completedPrescriptionItems - 8)), total: 2 },
-          { key: 'substances', name: '避免有害物質', completed: Math.min(3, Math.max(0, completedPrescriptionItems - 10)), total: 3 },
-          { key: 'social', name: '人際社交處方', completed: Math.min(2, Math.max(0, completedPrescriptionItems - 13)), total: 2 },
-          { key: 'video', name: '衛教影片任務', completed: completedCount, total: weeklyTarget },
+        lifestyleTypes: [
+          {
+            typeName: '睡眠處方',
+            completed: Math.min(3, completedPrescriptionItems),
+            total: 3,
+            isAchieved: Math.min(3, completedPrescriptionItems) >= 3,
+            items: [
+              { title: '每日 23:00 前固定入睡並紀錄睡眠品質', isAchieved: Math.min(3, completedPrescriptionItems) >= 3, countText: `${Math.min(3, completedPrescriptionItems)}/3 次` }
+            ]
+          },
+          {
+            typeName: '壓力管理處方',
+            completed: Math.min(2, Math.max(0, completedPrescriptionItems - 3)),
+            total: 2,
+            isAchieved: Math.min(2, Math.max(0, completedPrescriptionItems - 3)) >= 2,
+            items: [
+              { title: '每日進行 10 分鐘腹式呼吸放鬆與正念冥想', isAchieved: Math.min(2, Math.max(0, completedPrescriptionItems - 3)) >= 2, countText: `${Math.min(2, Math.max(0, completedPrescriptionItems - 3))}/2 次` }
+            ]
+          },
+          {
+            typeName: '飲食習慣處方',
+            completed: Math.min(2, Math.max(0, completedPrescriptionItems - 5)),
+            total: 2,
+            isAchieved: Math.min(2, Math.max(0, completedPrescriptionItems - 5)) >= 2,
+            items: [
+              { title: '每日攝取地中海飲食五蔬果，減少精緻糖', isAchieved: Math.min(2, Math.max(0, completedPrescriptionItems - 5)) >= 2, countText: `${Math.min(2, Math.max(0, completedPrescriptionItems - 5))}/2 次` }
+            ]
+          },
+          {
+            typeName: '運動處方',
+            completed: Math.min(1, Math.max(0, completedPrescriptionItems - 7)),
+            total: 1,
+            isAchieved: Math.min(1, Math.max(0, completedPrescriptionItems - 7)) >= 1,
+            items: [
+              { title: '每週執行 3 次超慢跑或伸展運動 30 分鐘', isAchieved: Math.min(1, Math.max(0, completedPrescriptionItems - 7)) >= 1, countText: `${Math.min(1, Math.max(0, completedPrescriptionItems - 7))}/1 次` }
+            ]
+          },
+          {
+            typeName: '避免有害物質',
+            completed: Math.min(1, Math.max(0, completedPrescriptionItems - 8)),
+            total: 1,
+            isAchieved: Math.min(1, Math.max(0, completedPrescriptionItems - 8)) >= 1,
+            items: [
+              { title: '避免高油高鹽及加工食品，戒菸限酒', isAchieved: Math.min(1, Math.max(0, completedPrescriptionItems - 8)) >= 1, countText: `${Math.min(1, Math.max(0, completedPrescriptionItems - 8))}/1 次` }
+            ]
+          },
+          {
+            typeName: '人際社交處方',
+            completed: Math.min(1, Math.max(0, completedPrescriptionItems - 9)),
+            total: 1,
+            isAchieved: Math.min(1, Math.max(0, completedPrescriptionItems - 9)) >= 1,
+            items: [
+              { title: '每週參與社區據點活動或與親友通話互動', isAchieved: Math.min(1, Math.max(0, completedPrescriptionItems - 9)) >= 1, countText: `${Math.min(1, Math.max(0, completedPrescriptionItems - 9))}/1 次` }
+            ]
+          }
         ],
+        videoList: [
+          { id: 'v1', title: '生活型態醫學導論：6大支柱概述', duration: '8分鐘', watched: completedCount >= 1, watchedTime: completedCount >= 1 ? '2026-08-30 14:20' : '' },
+          { id: 'v2', title: '腹式呼吸與抗壓冥想練習指南', duration: '12分鐘', watched: completedCount >= 2, watchedTime: completedCount >= 2 ? '2026-08-31 09:10' : '' },
+          { id: 'v3', title: '地中海飲食外食選擇與擇食技巧', duration: '10分鐘', watched: completedCount >= 3, watchedTime: completedCount >= 3 ? '2026-08-31 16:00' : '' },
+        ]
       },
       {
         id: 'w4',
-        weekTitle: '第 4 週',
-        dateStr: '2026-08-24 11:48 午間',
-        dateRange: '08/25 ~ 08/31',
-        prescriptionCompleted: 15,
-        prescriptionTotal: 15,
+        dateRange: '2026/08/18 至 2026/08/24',
+        prescriptionCompleted: 10,
+        prescriptionTotal: 10,
         videoCompleted: 3,
         videoTotal: 3,
         percent: 100,
-        statusText: '滿分',
-        statusType: 'normal',
-        breakdown: [
-          { key: 'sleep', name: '睡眠處方', completed: 3, total: 3 },
-          { key: 'stress', name: '壓力管理處方', completed: 2, total: 2 },
-          { key: 'diet', name: '飲食習慣處方', completed: 3, total: 3 },
-          { key: 'exercise', name: '運動處方', completed: 2, total: 2 },
-          { key: 'substances', name: '避免有害物質', completed: 3, total: 3 },
-          { key: 'social', name: '人際社交處方', completed: 2, total: 2 },
-          { key: 'video', name: '衛教影片任務', completed: 3, total: 3 },
+        lifestyleTypes: [
+          {
+            typeName: '睡眠處方',
+            completed: 3,
+            total: 3,
+            isAchieved: true,
+            items: [{ title: '每日 23:00 前固定入睡並紀錄睡眠品質', isAchieved: true, countText: '3/3 次' }]
+          },
+          {
+            typeName: '壓力管理處方',
+            completed: 2,
+            total: 2,
+            isAchieved: true,
+            items: [{ title: '每日進行 10 分鐘腹式呼吸放鬆與正念冥想', isAchieved: true, countText: '2/2 次' }]
+          },
+          {
+            typeName: '飲食習慣處方',
+            completed: 2,
+            total: 2,
+            isAchieved: true,
+            items: [{ title: '每日攝取地中海飲食五蔬果，減少精緻糖', isAchieved: true, countText: '2/2 次' }]
+          },
+          {
+            typeName: '運動處方',
+            completed: 1,
+            total: 1,
+            isAchieved: true,
+            items: [{ title: '每週執行 3 次超慢跑或伸展運動 30 分鐘', isAchieved: true, countText: '1/1 次' }]
+          },
+          {
+            typeName: '避免有害物質',
+            completed: 1,
+            total: 1,
+            isAchieved: true,
+            items: [{ title: '避免高油高鹽及加工食品，戒菸限酒', isAchieved: true, countText: '1/1 次' }]
+          },
+          {
+            typeName: '人際社交處方',
+            completed: 1,
+            total: 1,
+            isAchieved: true,
+            items: [{ title: '每週參與社區據點活動或與親友通話互動', isAchieved: true, countText: '1/1 次' }]
+          }
         ],
+        videoList: [
+          { id: 'v1', title: '熟齡伸展與超慢跑指引', duration: '15分鐘', watched: true, watchedTime: '2026-08-20 09:15' },
+          { id: 'v2', title: '睡眠衛生與高質量深眠法', duration: '10分鐘', watched: true, watchedTime: '2026-08-22 21:00' },
+          { id: 'v3', title: '加工食品辨識與戒糖技巧', duration: '12分鐘', watched: true, watchedTime: '2026-08-23 16:30' },
+        ]
       },
       {
         id: 'w3',
-        weekTitle: '第 3 週',
-        dateStr: '2026-08-17 11:05 午間',
-        dateRange: '08/18 ~ 08/24',
-        prescriptionCompleted: 10,
-        prescriptionTotal: 15,
+        dateRange: '2026/08/11 至 2026/08/17',
+        prescriptionCompleted: 6,
+        prescriptionTotal: 10,
         videoCompleted: 2,
         videoTotal: 3,
-        percent: 63,
-        statusText: '留意',
-        statusType: 'warning',
-        breakdown: [
-          { key: 'sleep', name: '睡眠處方', completed: 2, total: 3 },
-          { key: 'stress', name: '壓力管理處方', completed: 1, total: 2 },
-          { key: 'diet', name: '飲食習慣處方', completed: 2, total: 3 },
-          { key: 'exercise', name: '運動處方', completed: 1, total: 2 },
-          { key: 'substances', name: '避免有害物質', completed: 3, total: 3 },
-          { key: 'social', name: '人際社交處方', completed: 0, total: 2 },
-          { key: 'video', name: '衛教影片任務', completed: 2, total: 3 },
+        percent: 60,
+        lifestyleTypes: [
+          {
+            typeName: '睡眠處方',
+            completed: 2,
+            total: 3,
+            isAchieved: false,
+            items: [{ title: '每日 23:00 前固定入睡並紀錄睡眠品質', isAchieved: false, countText: '2/3 次' }]
+          },
+          {
+            typeName: '壓力管理處方',
+            completed: 1,
+            total: 2,
+            isAchieved: false,
+            items: [{ title: '每日進行 10 分鐘腹式呼吸放鬆與正念冥想', isAchieved: false, countText: '1/2 次' }]
+          },
+          {
+            typeName: '飲食習慣處方',
+            completed: 2,
+            total: 2,
+            isAchieved: true,
+            items: [{ title: '每日攝取地中海飲食五蔬果，減少精緻糖', isAchieved: true, countText: '2/2 次' }]
+          },
+          {
+            typeName: '運動處方',
+            completed: 1,
+            total: 1,
+            isAchieved: true,
+            items: [{ title: '每週執行 3 次超慢跑或伸展運動 30 分鐘', isAchieved: true, countText: '1/1 次' }]
+          },
+          {
+            typeName: '避免有害物質',
+            completed: 0,
+            total: 1,
+            isAchieved: false,
+            items: [{ title: '避免高油高鹽及加工食品，戒菸限酒', isAchieved: false, countText: '0/1 次' }]
+          },
+          {
+            typeName: '人際社交處方',
+            completed: 0,
+            total: 1,
+            isAchieved: false,
+            items: [{ title: '每週參與社區據點活動或與親友通話互動', isAchieved: false, countText: '0/1 次' }]
+          }
         ],
+        videoList: [
+          { id: 'v1', title: '社區健走與人際社交活動', duration: '10分鐘', watched: true, watchedTime: '2026-08-12 11:10' },
+          { id: 'v2', title: '核心肌群自我檢測與訓練', duration: '15分鐘', watched: true, watchedTime: '2026-08-15 15:40' },
+          { id: 'v3', title: '戒菸限酒與血管保健衛教', duration: '8分鐘', watched: false, watchedTime: '' },
+        ]
       },
       {
         id: 'w2',
-        weekTitle: '第 2 週',
-        dateStr: '2026-08-10 12:48 午間',
-        dateRange: '08/11 ~ 08/17',
-        prescriptionCompleted: 13,
-        prescriptionTotal: 15,
+        dateRange: '2026/08/04 至 2026/08/10',
+        prescriptionCompleted: 8,
+        prescriptionTotal: 10,
         videoCompleted: 3,
         videoTotal: 3,
-        percent: 88,
-        statusText: '普通',
-        statusType: 'normal',
-        breakdown: [
-          { key: 'sleep', name: '睡眠處方', completed: 3, total: 3 },
-          { key: 'stress', name: '壓力管理處方', completed: 2, total: 2 },
-          { key: 'diet', name: '飲食習慣處方', completed: 3, total: 3 },
-          { key: 'exercise', name: '運動處方', completed: 2, total: 2 },
-          { key: 'substances', name: '避免有害物質', completed: 2, total: 3 },
-          { key: 'social', name: '人際社交處方', completed: 1, total: 2 },
-          { key: 'video', name: '衛教影片任務', completed: 3, total: 3 },
+        percent: 80,
+        lifestyleTypes: [
+          {
+            typeName: '睡眠處方',
+            completed: 3,
+            total: 3,
+            isAchieved: true,
+            items: [{ title: '每日 23:00 前固定入睡並紀錄睡眠品質', isAchieved: true, countText: '3/3 次' }]
+          },
+          {
+            typeName: '壓力管理處方',
+            completed: 2,
+            total: 2,
+            isAchieved: true,
+            items: [{ title: '每日進行 10 分鐘腹式呼吸放鬆與正念冥想', isAchieved: true, countText: '2/2 次' }]
+          },
+          {
+            typeName: '飲食習慣處方',
+            completed: 1,
+            total: 2,
+            isAchieved: false,
+            items: [{ title: '每日攝取地中海飲食五蔬果，減少精緻糖', isAchieved: false, countText: '1/2 次' }]
+          },
+          {
+            typeName: '運動處方',
+            completed: 1,
+            total: 1,
+            isAchieved: true,
+            items: [{ title: '每週執行 3 次超慢跑或伸展運動 30 分鐘', isAchieved: true, countText: '1/1 次' }]
+          },
+          {
+            typeName: '避免有害物質',
+            completed: 1,
+            total: 1,
+            isAchieved: true,
+            items: [{ title: '避免高油高鹽及加工食品，戒菸限酒', isAchieved: true, countText: '1/1 次' }]
+          },
+          {
+            typeName: '人際社交處方',
+            completed: 0,
+            total: 1,
+            isAchieved: false,
+            items: [{ title: '每週參與社區據點活動或與親友通話互動', isAchieved: false, countText: '0/1 次' }]
+          }
         ],
+        videoList: [
+          { id: 'v1', title: '睡眠障礙與日照規律調整', duration: '10分鐘', watched: true, watchedTime: '2026-08-05 20:10' },
+          { id: 'v2', title: '正念呼吸紓壓導引', duration: '12分鐘', watched: true, watchedTime: '2026-08-07 10:30' },
+          { id: 'v3', title: '低鈉高纖飲食健康烹調', duration: '15分鐘', watched: true, watchedTime: '2026-08-09 18:20' },
+        ]
       },
       {
         id: 'w1',
-        weekTitle: '第 1 週',
-        dateStr: '2026-08-03 16:20 午間',
-        dateRange: '08/04 ~ 08/10',
-        prescriptionCompleted: 8,
-        prescriptionTotal: 15,
+        dateRange: '2026/07/28 至 2026/08/03',
+        prescriptionCompleted: 4,
+        prescriptionTotal: 10,
         videoCompleted: 1,
         videoTotal: 3,
-        percent: 57,
-        statusText: '留意',
-        statusType: 'warning',
-        breakdown: [
-          { key: 'sleep', name: '睡眠處方', completed: 2, total: 3 },
-          { key: 'stress', name: '壓力管理處方', completed: 1, total: 2 },
-          { key: 'diet', name: '飲食習慣處方', completed: 2, total: 3 },
-          { key: 'exercise', name: '運動處方', completed: 1, total: 2 },
-          { key: 'substances', name: '避免有害物質', completed: 2, total: 3 },
-          { key: 'social', name: '人際社交處方', completed: 0, total: 2 },
-          { key: 'video', name: '衛教影片任務', completed: 1, total: 3 },
+        percent: 40,
+        lifestyleTypes: [
+          {
+            typeName: '睡眠處方',
+            completed: 2,
+            total: 3,
+            isAchieved: false,
+            items: [{ title: '每日 23:00 前固定入睡並紀錄睡眠品質', isAchieved: false, countText: '2/3 次' }]
+          },
+          {
+            typeName: '壓力管理處方',
+            completed: 1,
+            total: 2,
+            isAchieved: false,
+            items: [{ title: '每日進行 10 分鐘腹式呼吸放鬆與正念冥想', isAchieved: false, countText: '1/2 次' }]
+          },
+          {
+            typeName: '飲食習慣處方',
+            completed: 1,
+            total: 2,
+            isAchieved: false,
+            items: [{ title: '每日攝取地中海飲食五蔬果，減少精緻糖', isAchieved: false, countText: '1/2 次' }]
+          },
+          {
+            typeName: '運動處方',
+            completed: 0,
+            total: 1,
+            isAchieved: false,
+            items: [{ title: '每週執行 3 次超慢跑或伸展運動 30 分鐘', isAchieved: false, countText: '0/1 次' }]
+          },
+          {
+            typeName: '避免有害物質',
+            completed: 0,
+            total: 1,
+            isAchieved: false,
+            items: [{ title: '避免高油高鹽及加工食品，戒菸限酒', isAchieved: false, countText: '0/1 次' }]
+          },
+          {
+            typeName: '人際社交處方',
+            completed: 0,
+            total: 1,
+            isAchieved: false,
+            items: [{ title: '每週參與社區據點活動或與親友通話互動', isAchieved: false, countText: '0/1 次' }]
+          }
         ],
-      },
+        videoList: [
+          { id: 'v1', title: '熟齡防跌肌力訓練入門', duration: '15分鐘', watched: true, watchedTime: '2026-07-30 16:00' },
+          { id: 'v2', title: '認識生活型態醫學處方', duration: '10分鐘', watched: false, watchedTime: '' },
+          { id: 'v3', title: '社交情緒平衡與壓力管理', duration: '12分鐘', watched: false, watchedTime: '' },
+        ]
+      }
     ];
 
-    const filterOptions = [
-      { key: 'ALL', label: '所有' },
-      { key: 'sleep', label: '睡眠處方' },
-      { key: 'stress', label: '壓力管理' },
-      { key: 'diet', label: '飲食習慣' },
-      { key: 'exercise', label: '運動處方' },
-      { key: 'substances', label: '避免有害物質' },
-      { key: 'social', label: '人際社交' },
-      { key: 'video', label: '衛教影片' },
+    const monthlyRecordsList = [
+      {
+        id: 'm3',
+        dateRange: '2026/08/01 至 2026/08/31',
+        prescriptionCompleted: 28,
+        prescriptionTotal: 40,
+        videoCompleted: 5,
+        videoTotal: 5,
+        lifestyleTypes: [
+          {
+            typeName: '睡眠處方',
+            completed: 12,
+            total: 12,
+            isAchieved: true,
+            items: [{ title: '每日 23:00 前固定入睡並紀錄睡眠品質', isAchieved: true, countText: '12/12 次' }]
+          },
+          {
+            typeName: '壓力管理處方',
+            completed: 8,
+            total: 8,
+            isAchieved: true,
+            items: [{ title: '每日進行 10 分鐘腹式呼吸放鬆與正念冥想', isAchieved: true, countText: '8/8 次' }]
+          },
+          {
+            typeName: '飲食習慣處方',
+            completed: 5,
+            total: 8,
+            isAchieved: false,
+            items: [{ title: '每日攝取地中海飲食五蔬果，減少精緻糖', isAchieved: false, countText: '5/8 次' }]
+          },
+          {
+            typeName: '運動處方',
+            completed: 3,
+            total: 4,
+            isAchieved: false,
+            items: [{ title: '每週執行 3 次超慢跑或伸展運動 30 分鐘', isAchieved: false, countText: '3/4 次' }]
+          },
+          {
+            typeName: '避免有害物質',
+            completed: 0,
+            total: 4,
+            isAchieved: false,
+            items: [{ title: '避免高油高鹽及加工食品，戒菸限酒', isAchieved: false, countText: '0/4 次' }]
+          },
+          {
+            typeName: '人際社交處方',
+            completed: 0,
+            total: 4,
+            isAchieved: false,
+            items: [{ title: '每週參與社區據點活動或與親友通話互動', isAchieved: false, countText: '0/4 次' }]
+          }
+        ],
+        videoList: [
+          { id: 'mv1', title: '生活型態醫學導論：6大支柱概述', duration: '8分鐘', watched: true, watchedTime: '2026-08-05 14:20' },
+          { id: 'mv2', title: '熟齡伸展與超慢跑指引', duration: '15分鐘', watched: true, watchedTime: '2026-08-12 09:15' },
+          { id: 'mv3', title: '睡眠衛生與高質量深眠法', duration: '10分鐘', watched: true, watchedTime: '2026-08-18 21:00' },
+          { id: 'mv4', title: '腹式呼吸與抗壓冥想練習指南', duration: '12分鐘', watched: true, watchedTime: '2026-08-25 10:30' },
+          { id: 'mv5', title: '地中海飲食外食選擇與擇食技巧', duration: '10分鐘', watched: true, watchedTime: '2026-08-30 16:00' },
+        ]
+      },
+      {
+        id: 'm2',
+        dateRange: '2026/07/01 至 2026/07/31',
+        prescriptionCompleted: 35,
+        prescriptionTotal: 40,
+        videoCompleted: 4,
+        videoTotal: 5,
+        lifestyleTypes: [
+          {
+            typeName: '睡眠處方',
+            completed: 12,
+            total: 12,
+            isAchieved: true,
+            items: [{ title: '每日 23:00 前固定入睡並紀錄睡眠品質', isAchieved: true, countText: '12/12 次' }]
+          },
+          {
+            typeName: '壓力管理處方',
+            completed: 8,
+            total: 8,
+            isAchieved: true,
+            items: [{ title: '每日進行 10 分鐘腹式呼吸放鬆與正念冥想', isAchieved: true, countText: '8/8 次' }]
+          },
+          {
+            typeName: '飲食習慣處方',
+            completed: 7,
+            total: 8,
+            isAchieved: false,
+            items: [{ title: '每日攝取地中海飲食五蔬果，減少精緻糖', isAchieved: false, countText: '7/8 次' }]
+          },
+          {
+            typeName: '運動處方',
+            completed: 4,
+            total: 4,
+            isAchieved: true,
+            items: [{ title: '每週執行 3 次超慢跑或伸展運動 30 分鐘', isAchieved: true, countText: '4/4 次' }]
+          },
+          {
+            typeName: '避免有害物質',
+            completed: 2,
+            total: 4,
+            isAchieved: false,
+            items: [{ title: '避免高油高鹽及加工食品，戒菸限酒', isAchieved: false, countText: '2/4 次' }]
+          },
+          {
+            typeName: '人際社交處方',
+            completed: 2,
+            total: 4,
+            isAchieved: false,
+            items: [{ title: '每週參與社區據點活動或與親友通話互動', isAchieved: false, countText: '2/4 次' }]
+          }
+        ],
+        videoList: [
+          { id: 'mv6', title: '熟齡防跌肌力訓練入門', duration: '15分鐘', watched: true, watchedTime: '2026-07-08 16:00' },
+          { id: 'mv7', title: '低鈉高纖飲食健康烹調', duration: '15分鐘', watched: true, watchedTime: '2026-07-15 18:20' },
+          { id: 'mv8', title: '核心肌群自我檢測與訓練', duration: '15分鐘', watched: true, watchedTime: '2026-07-22 15:40' },
+          { id: 'mv9', title: '社交情緒平衡與壓力管理', duration: '12分鐘', watched: true, watchedTime: '2026-07-28 11:10' },
+        ]
+      },
+      {
+        id: 'm1',
+        dateRange: '2026/06/01 至 2026/06/30',
+        prescriptionCompleted: 24,
+        prescriptionTotal: 40,
+        videoCompleted: 3,
+        videoTotal: 5,
+        lifestyleTypes: [
+          {
+            typeName: '睡眠處方',
+            completed: 10,
+            total: 12,
+            isAchieved: false,
+            items: [{ title: '每日 23:00 前固定入睡並紀錄睡眠品質', isAchieved: false, countText: '10/12 次' }]
+          },
+          {
+            typeName: '壓力管理處方',
+            completed: 6,
+            total: 8,
+            isAchieved: false,
+            items: [{ title: '每日進行 10 分鐘腹式呼吸放鬆與正念冥想', isAchieved: false, countText: '6/8 次' }]
+          },
+          {
+            typeName: '飲食習慣處方',
+            completed: 4,
+            total: 8,
+            isAchieved: false,
+            items: [{ title: '每日攝取地中海飲食五蔬果，減少精緻糖', isAchieved: false, countText: '4/8 次' }]
+          },
+          {
+            typeName: '運動處方',
+            completed: 2,
+            total: 4,
+            isAchieved: false,
+            items: [{ title: '每週執行 3 次超慢跑或伸展運動 30 分鐘', isAchieved: false, countText: '2/4 次' }]
+          },
+          {
+            typeName: '避免有害物質',
+            completed: 1,
+            total: 4,
+            isAchieved: false,
+            items: [{ title: '避免高油高鹽及加工食品，戒菸限酒', isAchieved: false, countText: '1/4 次' }]
+          },
+          {
+            typeName: '人際社交處方',
+            completed: 1,
+            total: 4,
+            isAchieved: false,
+            items: [{ title: '每週參與社區據點活動或與親友通話互動', isAchieved: false, countText: '1/4 次' }]
+          }
+        ],
+        videoList: [
+          { id: 'mv10', title: '認識生活型態醫學處方', duration: '10分鐘', watched: true, watchedTime: '2026-06-10 10:00' },
+          { id: 'mv11', title: '戒菸限酒與血管保健衛教', duration: '8分鐘', watched: true, watchedTime: '2026-06-18 14:30' },
+          { id: 'mv12', title: '睡眠障礙與日照規律調整', duration: '10分鐘', watched: true, watchedTime: '2026-06-25 20:10' },
+        ]
+      }
     ];
+
+    const quarterlyRecordsList = [
+      {
+        id: 'q3',
+        dateRange: '2026/06/01 至 2026/08/31',
+        prescriptionCompleted: 87,
+        prescriptionTotal: 120,
+        videoCompleted: 6,
+        videoTotal: 6,
+        lifestyleTypes: [
+          {
+            typeName: '睡眠處方',
+            completed: 34,
+            total: 36,
+            isAchieved: false,
+            items: [{ title: '每日 23:00 前固定入睡並紀錄睡眠品質', isAchieved: false, countText: '34/36 次' }]
+          },
+          {
+            typeName: '壓力管理處方',
+            completed: 22,
+            total: 24,
+            isAchieved: false,
+            items: [{ title: '每日進行 10 分鐘腹式呼吸放鬆與正念冥想', isAchieved: false, countText: '22/24 次' }]
+          },
+          {
+            typeName: '飲食習慣處方',
+            completed: 16,
+            total: 24,
+            isAchieved: false,
+            items: [{ title: '每日攝取地中海飲食五蔬果，減少精緻糖', isAchieved: false, countText: '16/24 次' }]
+          },
+          {
+            typeName: '運動處方',
+            completed: 9,
+            total: 12,
+            isAchieved: false,
+            items: [{ title: '每週執行 3 次超慢跑或伸展運動 30 分鐘', isAchieved: false, countText: '9/12 次' }]
+          },
+          {
+            typeName: '避免有害物質',
+            completed: 3,
+            total: 12,
+            isAchieved: false,
+            items: [{ title: '避免高油高鹽及加工食品，戒菸限酒', isAchieved: false, countText: '3/12 次' }]
+          },
+          {
+            typeName: '人際社交處方',
+            completed: 3,
+            total: 12,
+            isAchieved: false,
+            items: [{ title: '每週參與社區據點活動或與親友通話互動', isAchieved: false, countText: '3/12 次' }]
+          }
+        ],
+        videoList: [
+          { id: 'qv1', title: '生活型態醫學導論：6大支柱概述', duration: '8分鐘', watched: true, watchedTime: '2026-08-05 14:20' },
+          { id: 'qv2', title: '熟齡伸展與超慢跑指引', duration: '15分鐘', watched: true, watchedTime: '2026-08-12 09:15' },
+          { id: 'qv3', title: '睡眠衛生與高質量深眠法', duration: '10分鐘', watched: true, watchedTime: '2026-08-18 21:00' },
+          { id: 'qv4', title: '熟齡防跌肌力訓練入門', duration: '15分鐘', watched: true, watchedTime: '2026-07-08 16:00' },
+          { id: 'qv5', title: '低鈉高纖飲食健康烹調', duration: '15分鐘', watched: true, watchedTime: '2026-07-15 18:20' },
+          { id: 'qv6', title: '認識生活型態醫學處方', duration: '10分鐘', watched: true, watchedTime: '2026-06-10 10:00' },
+        ]
+      },
+      {
+        id: 'q2',
+        dateRange: '2026/03/01 至 2026/05/31',
+        prescriptionCompleted: 95,
+        prescriptionTotal: 120,
+        videoCompleted: 3,
+        videoTotal: 3,
+        lifestyleTypes: [
+          {
+            typeName: '睡眠處方',
+            completed: 36,
+            total: 36,
+            isAchieved: true,
+            items: [{ title: '每日 23:00 前固定入睡並紀錄睡眠品質', isAchieved: true, countText: '36/36 次' }]
+          },
+          {
+            typeName: '壓力管理處方',
+            completed: 24,
+            total: 24,
+            isAchieved: true,
+            items: [{ title: '每日進行 10 分鐘腹式呼吸放鬆與正念冥想', isAchieved: true, countText: '24/24 次' }]
+          },
+          {
+            typeName: '飲食習慣處方',
+            completed: 18,
+            total: 24,
+            isAchieved: false,
+            items: [{ title: '每日攝取地中海飲食五蔬果，減少精緻糖', isAchieved: false, countText: '18/24 次' }]
+          },
+          {
+            typeName: '運動處方',
+            completed: 10,
+            total: 12,
+            isAchieved: false,
+            items: [{ title: '每週執行 3 次超慢跑或伸展運動 30 分鐘', isAchieved: false, countText: '10/12 次' }]
+          },
+          {
+            typeName: '避免有害物質',
+            completed: 4,
+            total: 12,
+            isAchieved: false,
+            items: [{ title: '避免高油高鹽及加工食品，戒菸限酒', isAchieved: false, countText: '4/12 次' }]
+          },
+          {
+            typeName: '人際社交處方',
+            completed: 3,
+            total: 12,
+            isAchieved: false,
+            items: [{ title: '每週參與社區據點活動或與親友通話互動', isAchieved: false, countText: '3/12 次' }]
+          }
+        ],
+        videoList: [
+          { id: 'qv7', title: '熟齡心血管健康維護指南', duration: '12分鐘', watched: true, watchedTime: '2026-03-15 10:00' },
+          { id: 'qv8', title: '有氧運動與血糖控制關係', duration: '15分鐘', watched: true, watchedTime: '2026-04-10 14:00' },
+          { id: 'qv9', title: '高纖地中海料理食譜示範', duration: '18分鐘', watched: true, watchedTime: '2026-05-20 16:30' },
+        ]
+      }
+    ];
+
+    const activeRecordsList = analysisInterval === 'month' 
+      ? monthlyRecordsList 
+      : analysisInterval === 'quarter' 
+      ? quarterlyRecordsList 
+      : rawWeeklyRecordsList;
 
     return (
-      <div className="flex flex-col h-full bg-slate-50 font-sans antialiased text-slate-900 select-none overflow-hidden animate-in fade-in duration-200">
+      <div className="flex flex-col h-full bg-[#f8f9fa] font-sans antialiased text-slate-900 overflow-hidden animate-in fade-in duration-200">
         
-        {/* 1. Top Header matching IMG_9040.PNG */}
-        <header className="px-4 py-3 bg-white border-b border-slate-200 shrink-0 flex items-center justify-between min-h-[3.25rem] relative z-20">
+        {/* 1. Top Header */}
+        <header className="px-4 py-3 bg-white border-b border-slate-100 shrink-0 flex items-center justify-between min-h-[3.25rem] relative z-20">
           <button
             onClick={() => setShowStatsDetailView(false)}
             className="p-1.5 -ml-1 text-slate-700 hover:text-slate-900 rounded-full hover:bg-slate-100 transition-colors cursor-pointer active:scale-95 flex items-center"
@@ -479,316 +973,542 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
             <ChevronLeft className="w-6 h-6 stroke-[2.5]" />
           </button>
 
-          <h1 className="text-base font-black text-slate-900 tracking-tight">
-            Kai 綠色處方數據分析
-          </h1>
+          {/* Title Stack: 綠色處方 / 數據分析 */}
+          <div className="text-center">
+            <h1 className="text-base font-black text-slate-900 tracking-tight leading-none">
+              綠色處方
+            </h1>
+            <p className="text-[11px] font-bold text-slate-500 mt-0.5">
+              數據分析
+            </p>
+          </div>
 
-          <button
-            onClick={() => setShowPrescriptionDetailsView(true)}
-            className="p-1.5 -mr-1 text-slate-700 hover:text-slate-900 rounded-full hover:bg-slate-100 transition-colors cursor-pointer active:scale-95 flex items-center"
-            title="新增打卡紀錄"
-          >
-            <Plus className="w-6 h-6 stroke-[2.5]" />
-          </button>
+          <div className="w-9 h-9" />
         </header>
 
-        {/* 2. Main Scrollable Container */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-12">
+        {/* 2. Main Body */}
+        <div className="flex-1 overflow-y-auto min-h-0 touch-pan-y bg-[#f8f9fa] p-4 space-y-4 pb-12">
           
-          {/* Top Promo Banner matching IMG_9040.PNG */}
-          <div className="bg-[#FFF3EC] border border-[#FCD5CE] rounded-2xl p-3.5 flex items-center justify-between shadow-2xs">
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-black text-amber-900 bg-amber-100/90 border border-amber-300 px-2 py-0.2 rounded-full">
-                  好評延長加碼日日抽！
-                </span>
+          {/* Section: 選擇分析區間 (Pills: 周分析 / 月分析 / 季分析) */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-2xs space-y-3">
+            <h2 className="text-sm font-bold text-slate-900">
+              選擇分析區間
+            </h2>
+
+            {/* Interval Pills */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAnalysisInterval('week')}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                  analysisInterval === 'week'
+                    ? 'bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 border border-transparent'
+                }`}
+              >
+                周分析
+              </button>
+              <button
+                onClick={() => setAnalysisInterval('month')}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                  analysisInterval === 'month'
+                    ? 'bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 border border-transparent'
+                }`}
+              >
+                月分析
+              </button>
+              <button
+                onClick={() => setAnalysisInterval('quarter')}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                  analysisInterval === 'quarter'
+                    ? 'bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70 border border-transparent'
+                }`}
+              >
+                季分析
+              </button>
+            </div>
+
+            {/* Selected Date Range Text */}
+            <div className="pt-1">
+              <div className="text-base font-extrabold text-slate-900 tracking-tight">
+                {analysisInterval === 'week' && '2026/08/25 至 2026/08/31'}
+                {analysisInterval === 'month' && '2026/08/01 至 2026/08/31'}
+                {analysisInterval === 'quarter' && '2026/06/01 至 2026/08/31'}
               </div>
-              <div className="flex items-center gap-1 text-sm font-black text-[#f37021]">
-                <span>量綠處方 贏健康</span>
-                <span className="bg-[#f37021] text-white text-[10px] font-bold px-1.5 py-0.2 rounded-md">
-                  賺獎金
-                </span>
+              <div className="text-xs text-slate-500 font-medium mt-0.5">
+                {analysisInterval === 'week' && '共7天'}
+                {analysisInterval === 'month' && '共31天'}
+                {analysisInterval === 'quarter' && '共92天'}
               </div>
             </div>
-            <span className="text-[10px] text-slate-400 font-medium self-end">廣告</span>
           </div>
 
-          {/* Filter Bar & Summary Record Card matching IMG_9040.PNG */}
-          <div className="space-y-3">
-            {/* Filter Row: Left Dropdown + Right Search & Menu icons */}
-            <div className="flex items-center justify-between relative z-10">
-              {/* Dropdown Button matching "所有 ▾" in IMG_9040.PNG */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowRawFilterDropdown(!showRawFilterDropdown)}
-                  className="flex items-center gap-1 text-sm font-black text-slate-800 hover:text-slate-900 cursor-pointer py-1 px-1 rounded-lg hover:bg-slate-200/50"
-                >
-                  <span>
-                    {filterOptions.find((o) => o.key === rawDataCategoryFilter)?.label || '所有'}
-                  </span>
-                  <ChevronDown className="w-4 h-4 text-slate-500" />
-                </button>
+          {/* Section: 折線圖趨勢分析 */}
+          {(() => {
+            const chartData = analysisInterval === 'month' ? [
+              { label: '6月', val: 60, sub: '24/40項' },
+              { label: '7月', val: 88, sub: '35/40項' },
+              { label: '8月', val: 70, sub: '28/40項' },
+            ] : analysisInterval === 'quarter' ? [
+              { label: '2026 Q1', val: 65, sub: '78/120項' },
+              { label: '2026 Q2', val: 79, sub: '95/120項' },
+              { label: '2026 Q3', val: 73, sub: '87/120項' },
+            ] : [
+              { label: '07/28', val: 40, sub: '4/10項' },
+              { label: '08/04', val: 80, sub: '8/10項' },
+              { label: '08/11', val: 60, sub: '6/10項' },
+              { label: '08/18', val: 100, sub: '10/10項' },
+              { label: '08/25', val: Math.round((completedPrescriptionItems / 10) * 100), sub: `${completedPrescriptionItems}/10項` },
+            ];
 
-                {/* Filter Popover Menu */}
-                {showRawFilterDropdown && (
-                  <div className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-40 z-30 animate-in fade-in duration-150">
-                    {filterOptions.map((opt) => (
-                      <button
-                        key={opt.key}
-                        onClick={() => {
-                          setRawDataCategoryFilter(opt.key);
-                          setShowRawFilterDropdown(false);
-                        }}
-                        className={`w-full text-left px-3.5 py-2 text-xs font-bold transition-colors cursor-pointer flex items-center justify-between ${
-                          rawDataCategoryFilter === opt.key
-                            ? 'bg-orange-50 text-orange-600'
-                            : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span>{opt.label}</span>
-                        {rawDataCategoryFilter === opt.key && <Check className="w-3.5 h-3.5 text-orange-600" />}
-                      </button>
-                    ))}
+            const n = chartData.length;
+            const width = 320;
+            const height = 150;
+            const paddingLeft = 35;
+            const paddingRight = 35;
+            const paddingTop = 30;
+            const paddingBottom = 30;
+            const plotWidth = width - paddingLeft - paddingRight;
+            const plotHeight = height - paddingTop - paddingBottom;
+
+            const points = chartData.map((d, i) => {
+              const x = paddingLeft + (n > 1 ? i * (plotWidth / (n - 1)) : plotWidth / 2);
+              const y = (height - paddingBottom) - (d.val / 100) * plotHeight;
+              return { ...d, x, y };
+            });
+
+            const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+            const areaD = `${pathD} L ${points[points.length - 1].x.toFixed(1)} ${(height - paddingBottom).toFixed(1)} L ${points[0].x.toFixed(1)} ${(height - paddingBottom).toFixed(1)} Z`;
+
+            return (
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0">
+                      <TrendingUp className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900">
+                        處方達成率趨勢
+                      </h3>
+                      <p className="text-[11px] font-medium text-slate-500">
+                        {analysisInterval === 'week' && '近 5 週達成變化折線圖'}
+                        {analysisInterval === 'month' && '近 3 個月達成變化折線圖'}
+                        {analysisInterval === 'quarter' && '近 3 季度達成變化折線圖'}
+                      </p>
+                    </div>
                   </div>
-                )}
-              </div>
 
-              {/* Right Action Icons */}
-              <div className="flex items-center gap-2 text-slate-500">
-                <button className="p-1.5 hover:bg-slate-200/60 rounded-full transition-colors cursor-pointer">
-                  <Search className="w-4.5 h-4.5" />
-                </button>
-                <button className="p-1.5 hover:bg-slate-200/60 rounded-full transition-colors cursor-pointer">
-                  <MoreVertical className="w-4.5 h-4.5" />
-                </button>
-              </div>
-            </div>
+                  <div className="flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200/80">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="text-[11px] font-extrabold text-amber-900">達成率 (%)</span>
+                  </div>
+                </div>
 
-            {/* Summary Record Card matching "722血壓量測數據紀錄 >" in IMG_9040.PNG */}
-            <div
-              onClick={() => setShowPrescriptionDetailsView(true)}
-              className="bg-white border border-slate-200/90 rounded-2xl p-4 flex items-center justify-between shadow-2xs hover:border-orange-300 transition-all cursor-pointer group"
-            >
-              <span className="font-extrabold text-slate-900 text-[1.03rem]">
-                綠色處方週執行數據紀錄
-              </span>
-              <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-orange-600 group-hover:translate-x-0.5 transition-all" />
-            </div>
-          </div>
-
-          {/* 3. 折線圖 (Line Chart matching request) */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 text-orange-600" />
-                <h3 className="text-xs font-black text-slate-900">
-                  每週總處方達成率趨勢
-                </h3>
-              </div>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                75% 達標線
-              </span>
-            </div>
-
-            {/* Interactive SVG Chart */}
-            <div className="relative w-full h-[160px] pt-1">
-              {(() => {
-                const chartWidth = 330;
-                const chartHeight = 150;
-                const padLeft = 32;
-                const padRight = 20;
-                const padTop = 20;
-                const padBottom = 28;
-                const plotWidth = chartWidth - padLeft - padRight;
-                const plotHeight = chartHeight - padTop - padBottom;
-
-                const trendPoints = [...rawWeeklyRecordsList].reverse();
-
-                const getX = (idx: number) =>
-                  padLeft + (idx / Math.max(1, trendPoints.length - 1)) * plotWidth;
-                const getY = (val: number) =>
-                  padTop + (1 - Math.min(100, Math.max(0, val)) / 100) * plotHeight;
-
-                const linePoints = trendPoints
-                  .map((d, i) => `${getX(i)},${getY(d.percent)}`)
-                  .join(' ');
-
-                const areaPoints =
-                  `M ${getX(0)},${chartHeight - padBottom} ` +
-                  trendPoints.map((d, i) => `L ${getX(i)},${getY(d.percent)}`).join(' ') +
-                  ` L ${getX(trendPoints.length - 1)},${chartHeight - padBottom} Z`;
-
-                const targetY = getY(75);
-
-                return (
-                  <svg
-                    viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-                    className="w-full h-full overflow-visible select-none"
-                  >
+                {/* Chart SVG */}
+                <div className="pt-2 flex justify-center">
+                  <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-full overflow-visible">
                     <defs>
-                      <linearGradient id="rawTrendGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#f37021" stopOpacity="0.25" />
-                        <stop offset="100%" stopColor="#f37021" stopOpacity="0.0" />
+                      <linearGradient id="amberTrendGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
                       </linearGradient>
                     </defs>
 
-                    {/* Y-Axis Grid Lines */}
-                    <line x1={padLeft} y1={getY(100)} x2={chartWidth - padRight} y2={getY(100)} stroke="#e2e8f0" strokeDasharray="3 3" />
-                    <text x={padLeft - 4} y={getY(100) + 3} textAnchor="end" fill="#94a3b8" fontSize="8" fontWeight="bold">100%</text>
-
-                    {/* Target Line */}
-                    <line x1={padLeft} y1={targetY} x2={chartWidth - padRight} y2={targetY} stroke="#10b981" strokeWidth="1.2" strokeDasharray="3 3" />
-
-                    <line x1={padLeft} y1={getY(50)} x2={chartWidth - padRight} y2={getY(50)} stroke="#e2e8f0" strokeDasharray="3 3" />
-                    <text x={padLeft - 4} y={getY(50) + 3} textAnchor="end" fill="#94a3b8" fontSize="8" fontWeight="bold">50%</text>
-
-                    <line x1={padLeft} y1={chartHeight - padBottom} x2={chartWidth - padRight} y2={chartHeight - padBottom} stroke="#cbd5e1" strokeWidth="1.2" />
-
-                    {/* Gradient Area */}
-                    <path d={areaPoints} fill="url(#rawTrendGrad)" />
-
-                    {/* Polyline */}
-                    <polyline fill="none" stroke="#f37021" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={linePoints} />
-
-                    {/* Data Points */}
-                    {trendPoints.map((d, idx) => {
-                      const cx = getX(idx);
-                      const cy = getY(d.percent);
-                      const isPassed = d.percent >= 75;
+                    {/* Horizontal Grid lines */}
+                    {[0, 50, 100].map((gridVal) => {
+                      const gy = (height - paddingBottom) - (gridVal / 100) * plotHeight;
                       return (
-                        <g key={d.id} className="cursor-pointer">
-                          <circle cx={cx} cy={cy} r="4.5" fill="#ffffff" stroke={isPassed ? '#16a34a' : '#f37021'} strokeWidth="2.5" />
-                          <text x={cx} y={cy - 7} textAnchor="middle" fontSize="9" fontWeight="bold" fill={isPassed ? '#15803d' : '#f37021'}>
-                            {d.percent}%
-                          </text>
-                          <text x={cx} y={chartHeight - padBottom + 13} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#475569">
-                            {d.weekTitle}
+                        <g key={gridVal}>
+                          <line
+                            x1={paddingLeft - 8}
+                            y1={gy}
+                            x2={width - paddingRight + 8}
+                            y2={gy}
+                            stroke="#e2e8f0"
+                            strokeWidth="1"
+                            strokeDasharray="3 3"
+                          />
+                          <text
+                            x={paddingLeft - 12}
+                            y={gy + 3}
+                            fontSize="9"
+                            fontWeight="600"
+                            fill="#94a3b8"
+                            textAnchor="end"
+                          >
+                            {gridVal}%
                           </text>
                         </g>
                       );
                     })}
-                  </svg>
-                );
-              })()}
-            </div>
-          </div>
 
-          {/* 4. Weekly Raw Data Table (每週 raw data 數據紀錄表 matching IMG_9040.PNG exact format) */}
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs space-y-0">
-            {/* Table Header Row matching user request: 時間, 處方打卡 (完成/總數) */}
-            <div className="bg-slate-50/90 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between text-xs font-bold text-slate-500">
-              <span className="w-32 shrink-0">時間</span>
-              <span className="flex-1 text-center">處方打卡 (完成/總數)</span>
-              <span className="w-6 text-right"></span>
-            </div>
+                    {/* Area fill */}
+                    <path d={areaD} fill="url(#amberTrendGradient)" />
 
-            {/* Table Rows */}
-            <div className="divide-y divide-slate-100">
-              {rawWeeklyRecordsList.map((row, idx) => (
-                <div key={row.id} className="transition-colors hover:bg-slate-50/80">
-                  {/* Main Row */}
-                  <div
-                    onClick={() => setSelectedRawDataModalWeekIndex(idx)}
-                    className="px-4 py-3 flex items-center justify-between cursor-pointer group"
-                  >
-                    {/* Time Column */}
-                    <div className="w-32 shrink-0 space-y-0.5">
-                      <div className="text-xs font-extrabold text-slate-900 leading-tight">
-                        {row.dateStr.split(' ')[0]}
-                      </div>
-                      <div className="text-[11px] font-medium text-slate-500">
-                        {row.dateStr.split(' ')[1]} {row.weekTitle}
-                      </div>
-                    </div>
+                    {/* Line path */}
+                    <path
+                      d={pathD}
+                      fill="none"
+                      stroke="#f59e0b"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
 
-                    {/* Prescription & Video Raw Counts */}
-                    <div className="flex-1 text-center px-1">
-                      <div className="text-sm font-black text-slate-800">
-                        {row.prescriptionCompleted} / {row.prescriptionTotal} 項
-                      </div>
-                      <div className="text-[11px] font-bold text-emerald-600">
-                        影片：{row.videoCompleted}/{row.videoTotal} 支
-                      </div>
-                    </div>
+                    {/* Points & Value labels */}
+                    {points.map((p, idx) => (
+                      <g key={idx} className="transition-all">
+                        {/* Outer glow ring */}
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r="6"
+                          fill="#ffffff"
+                          stroke="#f59e0b"
+                          strokeWidth="2.5"
+                        />
+                        {/* Center dot */}
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r="2.5"
+                          fill="#d97706"
+                        />
 
-                    {/* Orange Arrow */}
-                    <div className="w-6 flex justify-end shrink-0">
-                      <ArrowRight className="w-4.5 h-4.5 text-[#f37021] stroke-[2.5] group-hover:translate-x-0.5 transition-transform" />
-                    </div>
-                  </div>
-
-                  {/* Expanded Breakdown Pill Preview for all categories */}
-                  <div className="px-3.5 pb-2.5 pt-0 flex flex-wrap gap-1.5 border-t border-dashed border-slate-100/80 mt-0.5">
-                    {row.breakdown
-                      .filter((b) => {
-                        if (rawDataCategoryFilter === 'ALL') return true;
-                        return b.key === rawDataCategoryFilter;
-                      })
-                      .map((b) => (
-                        <span
-                          key={b.name}
-                          className={`text-[10.5px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${
-                            b.completed === b.total && b.total > 0
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                              : 'bg-slate-50 text-slate-600 border-slate-200'
-                          }`}
+                        {/* Top Value Label */}
+                        <text
+                          x={p.x}
+                          y={p.y - 10}
+                          textAnchor="middle"
+                          fontSize="10.5"
+                          fontWeight="800"
+                          fill="#b45309"
                         >
-                          <span>{b.name.replace('處方', '').replace('任務', '')}:</span>
-                          <span className="font-black text-slate-900">
-                            {b.completed}/{b.total}
-                          </span>
-                        </span>
-                      ))}
-                  </div>
+                          {p.val}%
+                        </text>
+
+                        {/* X Axis Label */}
+                        <text
+                          x={p.x}
+                          y={height - 10}
+                          textAnchor="middle"
+                          fontSize="10"
+                          fontWeight="700"
+                          fill="#64748b"
+                        >
+                          {p.label}
+                        </text>
+                      </g>
+                    ))}
+                  </svg>
                 </div>
-              ))}
+              </div>
+            );
+          })()}
+
+          {/* Section: 數據執行紀錄清單 (含兩大項：生活型態處方 + 衛教影片任務) */}
+          <div className="space-y-4 pt-1">
+            <div className="text-xs font-extrabold text-slate-500 px-1">
+              數據執行紀錄清單
+            </div>
+
+            {/* 大項 1: 生活型態處方 */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden p-4 space-y-3">
+              <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 font-bold shrink-0">
+                  <ListTodo className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">生活型態處方</h3>
+                  <p className="text-[11px] font-medium text-slate-500">點選右側箭頭開啟彈窗查看各類型達成狀態</p>
+                </div>
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {activeRecordsList.map((row) => (
+                  <div
+                    key={`lifestyle-${row.id}`}
+                    onClick={() => setSelectedLifestyleModalRecord(row)}
+                    className="py-3 flex items-center justify-between cursor-pointer hover:bg-amber-50/40 rounded-xl px-2 transition-colors group select-none"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-extrabold text-slate-900">
+                        {row.dateRange}
+                      </div>
+                      <div className="text-[11px] font-bold text-slate-500">
+                        達成狀態：
+                        <span className={row.prescriptionCompleted < row.prescriptionTotal ? 'text-amber-600 font-extrabold' : 'text-emerald-600 font-extrabold'}>
+                          {row.prescriptionCompleted} / {row.prescriptionTotal} 項
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-slate-400 group-hover:text-[#f37021] transition-colors">
+                      <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-[#f37021] group-hover:translate-x-0.5 transition-all" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 大項 2: 衛教影片任務 */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden p-4 space-y-3">
+              <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700 font-bold shrink-0">
+                  <Film className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">衛教影片任務</h3>
+                  <p className="text-[11px] font-medium text-slate-500">點選右側箭頭開啟彈窗查看已觀看的影片紀錄</p>
+                </div>
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {activeRecordsList.map((row) => (
+                  <div
+                    key={`video-${row.id}`}
+                    onClick={() => setSelectedVideoModalRecord(row)}
+                    className="py-3 flex items-center justify-between cursor-pointer hover:bg-blue-50/40 rounded-xl px-2 transition-colors group select-none"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-extrabold text-slate-900">
+                        {row.dateRange}
+                      </div>
+                      <div className="text-[11px] font-bold text-slate-500">
+                        已觀看影片：
+                        <span className="text-blue-600 font-extrabold ml-1">
+                          {row.videoList ? row.videoList.filter((vid: any) => vid.watched).length : row.videoCompleted} 支
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-slate-400 group-hover:text-blue-600 transition-colors">
+                      <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Modal: Detailed Raw Data Popover when clicking any week row */}
-        {selectedRawDataModalWeekIndex !== null && rawWeeklyRecordsList[selectedRawDataModalWeekIndex] && (
+        {/* 彈窗 1: 生活型態處方彈窗 (依各類型呈現是否有達成，簡潔不呈現過多資訊與補卡) */}
+        {selectedLifestyleModalRecord && (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden p-5 space-y-4 border border-slate-100">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
-                  <h3 className="text-base font-black text-slate-900">
-                    {rawWeeklyRecordsList[selectedRawDataModalWeekIndex].weekTitle} (
-                    {rawWeeklyRecordsList[selectedRawDataModalWeekIndex].dateRange}) Raw Data
+                  <h3 className="text-sm font-black text-slate-900">
+                    生活型態處方紀錄
                   </h3>
-                  <div className="text-xs text-slate-500 font-bold">
-                    記錄時間：{rawWeeklyRecordsList[selectedRawDataModalWeekIndex].dateStr}
-                  </div>
+                  <p className="text-xs font-extrabold text-[#f37021] mt-0.5">
+                    {selectedLifestyleModalRecord.dateRange}
+                  </p>
                 </div>
                 <button
-                  onClick={() => setSelectedRawDataModalWeekIndex(null)}
+                  onClick={() => setSelectedLifestyleModalRecord(null)}
                   className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Itemized Categories Breakdown */}
-              <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-                {rawWeeklyRecordsList[selectedRawDataModalWeekIndex].breakdown.map((b) => (
-                  <div key={b.name} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs font-bold">
-                    <span className="text-slate-800">{b.name}</span>
-                    <span className={`font-black ${b.completed === b.total ? 'text-emerald-600' : 'text-slate-900'}`}>
-                      {b.completed} / {b.total} 項完成
-                    </span>
+              {/* Types & Prescription Status */}
+              {analysisInterval === 'month' || analysisInterval === 'quarter' ? (
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                  <div className="text-xs font-extrabold text-slate-500 px-0.5">
+                    {analysisInterval === 'month' ? '月度處方各類型達成率' : '季度處方各類型達成率'}
                   </div>
-                ))}
-              </div>
 
+                  {selectedLifestyleModalRecord.lifestyleTypes.map((typeGroup: any) => {
+                    const rate = typeGroup.total > 0 ? Math.round((typeGroup.completed / typeGroup.total) * 100) : 0;
+                    return (
+                      <div
+                        key={typeGroup.typeName}
+                        className="p-3.5 bg-slate-50/90 rounded-xl border border-slate-200/80 space-y-2.5"
+                      >
+                        {/* Category Header */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-slate-800">
+                            {typeGroup.typeName}
+                          </span>
+                          <span
+                            className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md ${
+                              rate >= 100
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : rate >= 60
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-rose-100 text-rose-800'
+                            }`}
+                          >
+                            達成率 {rate}% ({typeGroup.completed}/{typeGroup.total}次)
+                          </span>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              rate >= 100
+                                ? 'bg-emerald-500'
+                                : rate >= 60
+                                ? 'bg-amber-500'
+                                : 'bg-rose-500'
+                            }`}
+                            style={{ width: `${Math.min(100, rate)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                  {selectedLifestyleModalRecord.lifestyleTypes.map((typeGroup: any) => (
+                    <div
+                      key={typeGroup.typeName}
+                      className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-2"
+                    >
+                      {/* Category Header */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                          {typeGroup.typeName}
+                          <span className="text-[11px] font-bold text-slate-500">
+                            ({typeGroup.completed}/{typeGroup.total}次)
+                          </span>
+                        </span>
+                        <span
+                          className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md ${
+                            typeGroup.isAchieved
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {typeGroup.isAchieved ? '✅ 已達成' : '❌ 未達成'}
+                        </span>
+                      </div>
+
+                      {/* Prescriptions List under this category */}
+                      <div className="space-y-1.5 pt-1 border-t border-slate-200/60">
+                        {typeGroup.items.map((item: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start justify-between gap-2"
+                          >
+                            <div className="space-y-0.5">
+                              <div className="text-xs text-slate-700 font-medium leading-relaxed">
+                                {item.title}
+                              </div>
+                              {item.countText && (
+                                <div className="text-[10.5px] font-bold text-slate-400">
+                                  進度：{item.countText}
+                                </div>
+                              )}
+                            </div>
+                            <span
+                              className={`text-[10.5px] font-bold shrink-0 px-1.5 py-0.2 rounded ${
+                                item.isAchieved
+                                  ? 'text-emerald-700 bg-emerald-50'
+                                  : 'text-slate-500 bg-slate-100'
+                              }`}
+                            >
+                              {item.isAchieved ? '已達成' : '未達成'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Close Button */}
               <button
-                onClick={() => setSelectedRawDataModalWeekIndex(null)}
-                className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black cursor-pointer shadow-xs"
+                onClick={() => setSelectedLifestyleModalRecord(null)}
+                className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black cursor-pointer hover:bg-slate-800 transition-colors"
               >
                 關閉
               </button>
             </div>
           </div>
         )}
+
+        {/* 彈窗 2: 衛教影片任務彈窗 (直接呈現有看哪幾部影片) */}
+        {selectedVideoModalRecord && (() => {
+          const watchedVideos = selectedVideoModalRecord.videoList?.filter((vid: any) => vid.watched) || [];
+          
+          return (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+              <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden p-5 space-y-4 border border-slate-100">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">
+                      衛教影片觀看紀錄
+                    </h3>
+                    <p className="text-xs font-extrabold text-blue-600 mt-0.5">
+                      {selectedVideoModalRecord.dateRange}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedVideoModalRecord(null)}
+                    className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Video List */}
+                <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+                  <div className="text-xs font-extrabold text-slate-500 px-0.5">
+                    已觀看影片 ({watchedVideos.length} 支)
+                  </div>
+
+                  {watchedVideos.length > 0 ? (
+                    watchedVideos.map((vid: any, idx: number) => (
+                      <div
+                        key={vid.id || idx}
+                        className="p-3 rounded-xl border border-blue-100 bg-blue-50/40 flex items-start justify-between gap-2.5 transition-colors"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-900">
+                              {idx + 1}. {vid.title}
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-medium text-slate-500 flex items-center gap-2">
+                            <span>長度：{vid.duration}</span>
+                            {vid.watchedTime && <span>• 觀看時間：{vid.watchedTime}</span>}
+                          </div>
+                        </div>
+
+                        <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-md shrink-0 bg-emerald-100 text-emerald-800">
+                          ✅ 已觀看
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      <Film className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs font-extrabold text-slate-500">該期間尚無衛教影片觀看紀錄</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Close Button */}
+                <button
+                  onClick={() => setSelectedVideoModalRecord(null)}
+                  className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black cursor-pointer hover:bg-slate-800 transition-colors"
+                >
+                  關閉
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
       </div>
     );
@@ -943,7 +1663,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
         </div>
 
         {/* Scrollable Prescription Checklist (Exact Format matching uploaded image) */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 pb-12">
+        <div className="flex-1 overflow-y-auto min-h-0 touch-pan-y p-4 space-y-3.5 pb-12">
           {activeGoalKeys
             .filter((key) => {
               if (selectedCategoryTab === 'ALL') return true;
@@ -1135,7 +1855,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
       )}
 
       {/* 3. Main Card List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3.5 pb-12">
+      <div className="flex-1 overflow-y-auto min-h-0 touch-pan-y p-4 space-y-3.5 pb-12">
         
         {/* CARD 1 (TOP): 健康數據分析 (點擊進入獨立數據分析頁面) */}
         <div

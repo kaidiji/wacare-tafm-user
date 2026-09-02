@@ -93,7 +93,7 @@ export const GreenPrescriptionEventScreen: React.FC<Props> = ({
       </header>
 
       {/* Main Scrollable Body */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-8">
+      <div className="flex-1 overflow-y-auto min-h-0 touch-pan-y px-4 py-4 space-y-4 pb-8">
         
         {/* 1. Partner Header Banner (Taiwan Association of Family Medicine & WaCare) */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs space-y-3.5 relative overflow-hidden">

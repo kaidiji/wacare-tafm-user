@@ -27,8 +27,8 @@ export const GreenPrescriptionConsentModal: React.FC<Props> = ({
   const handleScroll = () => {
     if (!scrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    // Check if scrolled near the bottom (within 15px)
-    if (scrollHeight - scrollTop - clientHeight <= 15) {
+    // Check if scrolled near the bottom (within 35px) or reached the end
+    if (scrollHeight - scrollTop - clientHeight <= 35 || Math.ceil(scrollTop + clientHeight) >= scrollHeight - 35) {
       setHasScrolledToBottom(true);
     }
   };
@@ -39,8 +39,26 @@ export const GreenPrescriptionConsentModal: React.FC<Props> = ({
         top: scrollRef.current.scrollHeight,
         behavior: 'smooth',
       });
+      // Set true immediately so user is never stuck
+      setHasScrolledToBottom(true);
     }
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      setHasScrolledToBottom(false);
+      setIsAgreed(false);
+      const timer = setTimeout(() => {
+        if (scrollRef.current) {
+          const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+          if (scrollHeight <= clientHeight + 25 || scrollHeight - scrollTop - clientHeight <= 35) {
+            setHasScrolledToBottom(true);
+          }
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   const handleComplete = () => {
     if (isAgreed && hasScrolledToBottom) {
@@ -97,7 +115,7 @@ export const GreenPrescriptionConsentModal: React.FC<Props> = ({
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="p-4 overflow-y-auto space-y-3.5 text-xs text-slate-700 leading-relaxed font-normal flex-1 border-b border-slate-100 divide-y divide-slate-100"
+          className="p-4 overflow-y-auto min-h-0 touch-pan-y overscroll-contain select-text space-y-3.5 text-xs text-slate-700 leading-relaxed font-normal flex-1 border-b border-slate-100 divide-y divide-slate-100"
         >
           <div className="text-center font-black text-sm text-slate-900 pb-1">
             個人資料利用暨授權同意書

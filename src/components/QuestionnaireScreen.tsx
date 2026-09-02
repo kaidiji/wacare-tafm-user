@@ -131,7 +131,7 @@ export const QuestionnaireScreen: React.FC<Props> = ({
   }
 
   return (
-    <div className="flex flex-col h-full bg-white relative font-sans antialiased text-slate-900 select-none">
+    <div className="flex flex-col h-full bg-white relative font-sans antialiased text-slate-900 overflow-hidden">
       {/* 1. Header Bar (Matching design exactly: Close 'X', Center '問卷', Right orange '+') */}
       <header className="pt-2 px-4 bg-white border-b border-slate-100 sticky top-0 z-20 shadow-2xs">
         <div className="flex items-center justify-between min-h-[3.25rem]">
@@ -192,7 +192,7 @@ export const QuestionnaireScreen: React.FC<Props> = ({
       </header>
 
       {/* 3. Main Content Area */}
-      <div className="flex-1 overflow-y-auto bg-white flex flex-col">
+      <div className="flex-1 overflow-y-auto min-h-0 touch-pan-y bg-white flex flex-col">
         {currentList.length === 0 ? (
           /* Empty State Matching Uploaded Screenshot (IMG_8995.PNG) */
           <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 text-center my-auto">
