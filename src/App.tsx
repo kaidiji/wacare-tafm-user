@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { DataAuthorizationScreen } from './components/DataAuthorizationScreen';
 import { ScreenId, UserProfile, Activity722State, ChatMessage } from './types';
 import { Scr00Landing } from './components/Scr00Landing';
@@ -11,7 +11,7 @@ import { WaCareMessages } from './components/WaCareMessages';
 import { RealNameVerification } from './components/RealNameVerification';
 import { Scr08BloodPressure } from './components/Scr08BloodPressure';
 import { HealthDataScreen } from './components/HealthDataScreen';
-import { GreenPrescriptionDashboard } from './components/greenPrescription/GreenPrescriptionDashboard';
+import { GreenPrescriptionDashboard, AssignedExpertPrescription } from './components/greenPrescription/GreenPrescriptionDashboard';
 import { GreenPrescriptionCoursesScreen } from './components/greenPrescription/GreenPrescriptionCoursesScreen';
 import { GreenPrescriptionEventScreen } from './components/greenPrescription/GreenPrescriptionEventScreen';
 import {
@@ -49,7 +49,7 @@ export function App() {
     bloodType: 'O',
   });
 
-  // Followed experts state (預設追蹤 Wa 邦尼人工智慧 與 生活型態醫學專家)
+  // Followed experts state (預設追蹤 Wa 邦尼人工智慧 與 示範診所)
   const [followedExperts, setFollowedExperts] = useState<string[]>(['wa-bunny', 'family-medicine']);
 
   // 同意書簽署狀態（步驟一）
@@ -106,7 +106,7 @@ export function App() {
       {
         id: 'fm-1',
         sender: 'expert',
-        text: '親愛的會員您好！歡迎來到【生活型態醫學專家】線上健康諮詢頻道 🌿\n\n本頻道支援「綠色處方燈」服務。我們致力於透過非藥物的健康生活型態（運動、營養、舒眠、減壓）引導您改善健康。請填寫下方生活型態問卷告訴我們您最在意的生活面向，專家團隊將為您分析並開立專屬綠色處方！',
+        text: '親愛的會員您好！歡迎來到【示範診所】線上健康諮詢頻道 🌿\n\n本頻道支援「綠色處方燈」服務。我們致力於透過非藥物的健康生活型態（運動、營養、舒眠、減壓）引導您改善健康。請填寫下方生活型態問卷告訴我們您最在意的生活面向，專家團隊將為您分析並開立專屬綠色處方！',
         time: '09:00',
       },
       {
@@ -223,6 +223,36 @@ export function App() {
     records: [],
   });
 
+  const [isSecondExpertAssigned, setIsSecondExpertAssigned] = useState(false);
+
+  const assignedPrescriptions: AssignedExpertPrescription[] = useMemo(() => {
+    if (!isPrescriptionDispatched && assignedGoals.length === 0) return [];
+
+    const baseGoals = assignedGoals.length > 0 ? assignedGoals : (submittedGoals.length > 0 ? submittedGoals : ['運動習慣', '飲食習慣']);
+
+    const list: AssignedExpertPrescription[] = [
+      {
+        id: 'p-demo',
+        expertId: 'family-medicine',
+        expertName: '示範診所',
+        expertEmoji: '👨‍⚕️',
+        assignedGoals: baseGoals,
+      },
+    ];
+
+    if (isSecondExpertAssigned) {
+      list.push({
+        id: 'p-quanyin',
+        expertId: 'quanyin',
+        expertName: '全銀運動',
+        expertEmoji: '🏃‍♂️',
+        assignedGoals: ['身體活動', '睡眠品質'],
+      });
+    }
+
+    return list;
+  }, [isPrescriptionDispatched, assignedGoals, submittedGoals, isSecondExpertAssigned]);
+
   const handleAuthorizeSuccess = (expId: string) => {
     setActivityState((prev) => ({
       ...prev,
@@ -249,7 +279,7 @@ export function App() {
           <div>
             <div className="flex items-center gap-2">
               <span className="font-black text-sm tracking-tight text-white">
-                生活型態醫學專家診所 · 後台管理系統
+                示範診所 · 後台管理系統
               </span>
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
                 後台模擬控制台
@@ -279,7 +309,7 @@ export function App() {
         </div>
 
         {/* 外部後台操作按鍵 */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           {/* 派送處方按鈕 */}
           <button
             type="button"
@@ -461,6 +491,7 @@ export function App() {
               onNavigate={setCurrentScreen}
               prescriptionData={doctorPrescriptions}
               onTogglePrescriptionItem={handleTogglePrescriptionItem}
+              assignedPrescriptions={assignedPrescriptions}
             />
           )}
 

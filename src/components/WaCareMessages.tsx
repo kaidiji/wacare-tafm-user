@@ -117,7 +117,7 @@ export const WaCareMessages: React.FC<Props> = ({
       {
         id: 'fm-1',
         sender: 'expert',
-        text: '親愛的會員您好！歡迎來到【生活型態醫學專家】線上健康諮詢頻道 🌿\n\n本頻道支援「綠色處方燈」服務。請點擊下方問卷卡片完成生活型態問卷填寫，專家團隊將依據您的健康需求與在意領域為您開立專屬生活型態處方：',
+        text: '親愛的會員您好！歡迎來到【示範診所】線上健康諮詢頻道 🌿\n\n本頻道支援「綠色處方燈」服務。請點擊下方問卷卡片完成生活型態問卷填寫，專家團隊將依據您的健康需求與在意領域為您開立專屬生活型態處方：',
         time: '09:00',
       },
       {
@@ -173,11 +173,11 @@ export const WaCareMessages: React.FC<Props> = ({
   const channelList: ChatChannel[] = [
     {
       id: 'family-medicine',
-      name: '生活型態醫學專家',
+      name: '示範診所',
       clinicTag: '綠色處方燈',
       category: 'expert',
       avatarBg: 'bg-teal-700',
-      avatarText: '健康專家',
+      avatarText: '示範診所',
       avatarSubtext: 'WaCare',
       avatarType: 'clinic_expert',
       preview: familyMedPreview,
@@ -267,7 +267,7 @@ export const WaCareMessages: React.FC<Props> = ({
     setChatInput('');
 
     // 根據輸入內容判斷關鍵字
-    let replyText = '感謝您的詢問！生活型態醫學專家團隊已收到您的問題。';
+    let replyText = '感謝您的詢問！示範診所團隊已收到您的問題。';
 
     if (inputText.includes('吃') || inputText.includes('飲食') || inputText.includes('體重') || inputText.includes('魚油')) {
       replyText = `親愛的會員您好！了解您對「飲食與營養調配」非常重視。提醒您可以前往綠色處方燈觀看飲食與健腦抗發炎影音指引！`;

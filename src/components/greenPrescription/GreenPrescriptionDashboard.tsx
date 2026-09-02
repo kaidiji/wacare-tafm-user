@@ -42,6 +42,16 @@ const DataPieGlyph: React.FC<{ className?: string }> = ({ className = 'w-5 h-5 t
   </svg>
 );
 
+export interface AssignedExpertPrescription {
+  id: string;
+  expertId: string;
+  expertName: string;
+  expertEmoji?: string;
+  title?: string;
+  assignedGoals: string[];
+  prescriptionData?: Record<string, DoctorPrescriptionSection>;
+}
+
 interface Props {
   onBack: () => void;
   onNavigateToTasks: () => void;
@@ -55,6 +65,7 @@ interface Props {
   onNavigate?: (screen: ScreenId) => void;
   prescriptionData?: Record<string, DoctorPrescriptionSection>;
   onTogglePrescriptionItem?: (pillarKey: string, itemId: string) => void;
+  assignedPrescriptions?: AssignedExpertPrescription[];
 }
 
 export const GreenPrescriptionDashboard: React.FC<Props> = ({
@@ -70,6 +81,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   onNavigate,
   prescriptionData: propPrescriptionData,
   onTogglePrescriptionItem: propOnTogglePrescriptionItem,
+  assignedPrescriptions,
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date(2026, 7, 27)); // 2026年8月27日 (星期四)
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -112,6 +124,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
 
   // State for displaying the full prescription details page
   const [showPrescriptionDetailsView, setShowPrescriptionDetailsView] = useState(false);
+  const [selectedPrescriptionForDetail, setSelectedPrescriptionForDetail] = useState<AssignedExpertPrescription | null>(null);
   const [activePrescriptionDetailInfo, setActivePrescriptionDetailInfo] = useState<string | null>(null);
   const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('ALL');
 
@@ -151,8 +164,29 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
     }
   };
 
-  // Has the doctor assigned prescriptions (Only true when dispatched by expert clinic or assignedGoals has items)
-  const isDoctorAssigned = isPrescriptionDispatched || assignedGoals.length > 0;
+  // Default expert assignments logic
+  const defaultAssignedPrescriptions: AssignedExpertPrescription[] = useMemo(() => {
+    const baseGoals = assignedGoals.length > 0 ? assignedGoals : (submittedGoals.length > 0 ? submittedGoals : ['運動習慣', '飲食習慣']);
+    return [
+      {
+        id: 'p-demo',
+        expertId: 'family-medicine',
+        expertName: '示範診所',
+        expertEmoji: '👨‍⚕️',
+        assignedGoals: baseGoals,
+      },
+    ];
+  }, [assignedGoals, submittedGoals]);
+
+  const activeAssignedPrescriptions = useMemo(() => {
+    if (assignedPrescriptions && assignedPrescriptions.length > 0) {
+      return assignedPrescriptions;
+    }
+    return defaultAssignedPrescriptions;
+  }, [assignedPrescriptions, defaultAssignedPrescriptions]);
+
+  // Has the doctor assigned prescriptions
+  const isDoctorAssigned = isPrescriptionDispatched || assignedGoals.length > 0 || (assignedPrescriptions && assignedPrescriptions.length > 0);
 
   // Active goals list (defaults to user's submitted goals if assigned)
   const displayGoals = assignedGoals.length > 0 ? assignedGoals : submittedGoals;
@@ -217,11 +251,17 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
     });
   };
 
-  // Calculate total prescribed items and completed count for assigned goals
-  let totalPrescriptionItems = 0;
-  let completedPrescriptionItems = 0;
+  // Currently viewed detail prescription (for the detail view modal)
+  const currentDetailPrescription = selectedPrescriptionForDetail || activeAssignedPrescriptions[0];
+  const currentDetailGoals = currentDetailPrescription?.assignedGoals?.length > 0
+    ? currentDetailPrescription.assignedGoals
+    : ['運動習慣', '飲食習慣'];
 
-  const categoryBreakdown = activeGoalKeys.map((key) => {
+  // Calculate total prescribed items and completed count for selected detail prescription
+  let detailTotalItems = 0;
+  let detailCompletedItems = 0;
+
+  const detailCategoryBreakdown = currentDetailGoals.map((key) => {
     const sec = getDoctorPrescriptionSection(key, prescriptionData);
     const total = sec ? sec.items.length : 0;
     const completed = sec ? sec.items.filter((it) => it.completed).length : 0;
@@ -236,15 +276,20 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
     };
   });
 
-  categoryBreakdown.forEach((cat) => {
-    totalPrescriptionItems += cat.total;
-    completedPrescriptionItems += cat.completed;
+  detailCategoryBreakdown.forEach((cat) => {
+    detailTotalItems += cat.total;
+    detailCompletedItems += cat.completed;
   });
 
-  const prescriptionProgressPercent =
-    totalPrescriptionItems > 0
-      ? Math.round((completedPrescriptionItems / totalPrescriptionItems) * 100)
+  const detailProgressPercent =
+    detailTotalItems > 0
+      ? Math.round((detailCompletedItems / detailTotalItems) * 100)
       : 0;
+
+  // Global counts fallback
+  let totalPrescriptionItems = detailTotalItems;
+  let completedPrescriptionItems = detailCompletedItems;
+  let prescriptionProgressPercent = detailProgressPercent;
 
   // Selected week on the weekly trend line chart
   const [selectedTrendWeekIndex, setSelectedTrendWeekIndex] = useState<number>(4); // Default to current week (index 4)
@@ -1533,7 +1578,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
           </button>
 
           <h1 className="text-[1.0625rem] font-black text-slate-900 tracking-tight">
-            醫師指派處方明細
+            {currentDetailPrescription?.expertName || '示範診所'}指派處方明細
           </h1>
 
           <div className="w-14 text-right">
@@ -1548,24 +1593,24 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                👨‍⚕️
+                {currentDetailPrescription?.expertEmoji || '👨‍⚕️'}
               </div>
               <div>
                 <div className="text-xs font-bold text-slate-600">
-                  開立專家：生活型態醫學認證專家
+                  開立專家：{currentDetailPrescription?.expertName || '示範診所'}
                 </div>
                 <div className="text-sm font-black text-slate-900">
-                  個人化生活型態指派處方
+                  {currentDetailPrescription?.expertName || '示範診所'}個人化生活型態指派處方
                 </div>
               </div>
             </div>
 
             <div className="text-right">
               <span className="text-lg font-black text-orange-600">
-                {completedPrescriptionItems}
+                {detailCompletedItems}
               </span>
               <span className="text-xs font-bold text-slate-500">
-                /{totalPrescriptionItems} 項完成
+                /{detailTotalItems} 項完成
               </span>
             </div>
           </div>
@@ -1574,12 +1619,12 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
           <div className="space-y-1">
             <div className="flex justify-between text-[11px] font-bold text-slate-600">
               <span>今日處方執行達成率</span>
-              <span className="text-orange-600 font-extrabold">{prescriptionProgressPercent}%</span>
+              <span className="text-orange-600 font-extrabold">{detailProgressPercent}%</span>
             </div>
             <div className="w-full bg-orange-200/60 h-2.5 rounded-full overflow-hidden">
               <div
                 className="bg-orange-600 h-full rounded-full transition-all duration-300"
-                style={{ width: `${prescriptionProgressPercent}%` }}
+                style={{ width: `${detailProgressPercent}%` }}
               />
             </div>
           </div>
@@ -1617,12 +1662,12 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
                     : 'bg-slate-200/80 text-slate-600'
                 }`}
               >
-                {completedPrescriptionItems}/{totalPrescriptionItems}
+                {detailCompletedItems}/{detailTotalItems}
               </span>
             </button>
 
             {/* Individual Category Tabs */}
-            {activeGoalKeys.map((key) => {
+            {currentDetailGoals.map((key) => {
               const section = getDoctorPrescriptionSection(key, prescriptionData);
               if (!section) return null;
 
@@ -1664,7 +1709,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
 
         {/* Scrollable Prescription Checklist (Exact Format matching uploaded image) */}
         <div className="flex-1 overflow-y-auto min-h-0 touch-pan-y p-4 space-y-3.5 pb-12">
-          {activeGoalKeys
+          {currentDetailGoals
             .filter((key) => {
               if (selectedCategoryTab === 'ALL') return true;
               const sec = getDoctorPrescriptionSection(key, prescriptionData);
@@ -1759,7 +1804,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
               </div>
 
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-950 leading-relaxed font-medium">
-                本項目為生活型態醫學認證專家開立之處方指引，請配合日常作息確實落實執行。
+                本項目為{currentDetailPrescription?.expertName || '示範診所'}開立之處方指引，請配合日常作息確實落實執行。
               </div>
 
               <button
@@ -1876,7 +1921,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-slate-600 font-extrabold text-xs">
                   <span className="text-amber-600">⏳</span>
-                  <span>生活型態醫學認證專家 指派</span>
+                  <span>示範診所 指派</span>
                 </div>
                 <span className="text-[11px] font-black text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
                   評估中
@@ -1901,7 +1946,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-slate-600 font-extrabold text-xs">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                  <span>生活型態醫學認證專家 指派</span>
+                  <span>示範診所 指派</span>
                 </div>
                 <span className="text-[11px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
                   待填寫問卷
@@ -1920,79 +1965,107 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
             </div>
           )
         ) : (
-          /* 狀況 B：專家已指派處方 */
-          <div
-            onClick={() => setShowPrescriptionDetailsView(true)}
-            className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-2xs hover:border-orange-300 hover:shadow-xs transition-all cursor-pointer group space-y-3"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-slate-600 font-extrabold text-xs">
-                <span className="text-emerald-600 font-black">👨‍⚕️</span>
-                <span>生活型態醫學認證專家 指派</span>
-              </div>
-              <span
-                className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
-                  completedPrescriptionItems === totalPrescriptionItems && totalPrescriptionItems > 0
-                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                    : completedPrescriptionItems > 0
-                    ? 'text-orange-700 bg-orange-50 border-orange-200'
-                    : 'text-amber-700 bg-amber-50 border-amber-200'
-                }`}
-              >
-                {completedPrescriptionItems === totalPrescriptionItems && totalPrescriptionItems > 0
-                  ? '已全部完成'
-                  : completedPrescriptionItems > 0
-                  ? '進行中'
-                  : '待執行'}
-              </span>
-            </div>
+          /* 狀況 B：專家已指派處方（支援多個不同專家獨立顯示卡片） */
+          <div className="space-y-3.5">
+            {activeAssignedPrescriptions.map((presItem) => {
+              const cGoals = presItem.assignedGoals.length > 0 ? presItem.assignedGoals : ['運動習慣', '飲食習慣'];
+              let cCompleted = 0;
+              let cTotal = 0;
+              const cBreakdown: { key: string; title: string; completed: number; total: number }[] = [];
 
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[1.0625rem] font-black text-slate-900 group-hover:text-orange-600 transition-colors">
-                  專家指派生活型態處方
-                </h2>
-                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-orange-600 group-hover:translate-x-0.5 transition-all" />
-              </div>
-              <div className="text-xs text-slate-500 font-medium">
-                點擊查看處方明細
-              </div>
-            </div>
+              cGoals.forEach((gk) => {
+                const sec = getDoctorPrescriptionSection(gk, prescriptionData);
+                if (sec) {
+                  const cc = sec.items.filter((it) => it.completed).length;
+                  const tt = sec.items.length;
+                  cCompleted += cc;
+                  cTotal += tt;
+                  cBreakdown.push({ key: sec.id, title: sec.categoryTitle, completed: cc, total: tt });
+                }
+              });
+              const cPercent = cTotal > 0 ? Math.round((cCompleted / cTotal) * 100) : 0;
 
-            {/* 任務執行進度統計 */}
-            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-2.5">
-              <div className="flex items-center justify-between text-xs font-black">
-                <span className="text-slate-700">今日處方總執行進度</span>
-                <span className="text-orange-600 font-black">
-                  已完成 {completedPrescriptionItems} / 共 {totalPrescriptionItems} 項
-                </span>
-              </div>
-              <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+              return (
                 <div
-                  className="bg-orange-500 h-full rounded-full transition-all duration-300 shadow-2xs"
-                  style={{ width: `${prescriptionProgressPercent}%` }}
-                />
-              </div>
-
-              {/* 各關注面向完成進度快速預覽標籤 */}
-              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-200/60">
-                {categoryBreakdown.map((cat) => (
-                  <span
-                    key={cat.key}
-                    className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border flex items-center gap-1 ${
-                      cat.completed === cat.total && cat.total > 0
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-white text-slate-600 border-slate-200'
-                    }`}
-                  >
-                    <span>{cat.title}</span>
-                    <span className="font-black text-slate-800">
-                      {cat.completed}/{cat.total}
+                  key={presItem.id}
+                  onClick={() => {
+                    setSelectedPrescriptionForDetail(presItem);
+                    setSelectedCategoryTab('ALL');
+                    setShowPrescriptionDetailsView(true);
+                  }}
+                  className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-2xs hover:border-orange-300 hover:shadow-xs transition-all cursor-pointer group space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-extrabold text-xs">
+                      <span className="text-emerald-600 font-black">{presItem.expertEmoji || '👨‍⚕️'}</span>
+                      <span>{presItem.expertName} 指派</span>
+                    </div>
+                    <span
+                      className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
+                        cCompleted === cTotal && cTotal > 0
+                          ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                          : cCompleted > 0
+                          ? 'text-orange-700 bg-orange-50 border-orange-200'
+                          : 'text-amber-700 bg-amber-50 border-amber-200'
+                      }`}
+                    >
+                      {cCompleted === cTotal && cTotal > 0
+                        ? '已全部完成'
+                        : cCompleted > 0
+                        ? '進行中'
+                        : '待執行'}
                     </span>
-                  </span>
-                ))}
-              </div>
-            </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-[1.0625rem] font-black text-slate-900 group-hover:text-orange-600 transition-colors">
+                        {presItem.expertName}指派生活型態處方
+                      </h2>
+                      <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-orange-600 group-hover:translate-x-0.5 transition-all" />
+                    </div>
+                    <div className="text-xs text-slate-500 font-medium">
+                      點擊查看處方明細
+                    </div>
+                  </div>
+
+                  {/* 任務執行進度統計 */}
+                  <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-2.5">
+                    <div className="flex items-center justify-between text-xs font-black">
+                      <span className="text-slate-700">今日處方總執行進度</span>
+                      <span className="text-orange-600 font-black">
+                        已完成 {cCompleted} / 共 {cTotal} 項
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-orange-500 h-full rounded-full transition-all duration-300 shadow-2xs"
+                        style={{ width: `${cPercent}%` }}
+                      />
+                    </div>
+
+                    {/* 各關注面向完成進度快速預覽標籤 */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-200/60">
+                      {cBreakdown.map((cat) => (
+                        <span
+                          key={cat.key}
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border flex items-center gap-1 ${
+                            cat.completed === cat.total && cat.total > 0
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-white text-slate-600 border-slate-200'
+                          }`}
+                        >
+                          <span>{cat.title}</span>
+                          <span className="font-black text-slate-800">
+                            {cat.completed}/{cat.total}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 

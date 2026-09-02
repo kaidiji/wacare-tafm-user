@@ -54,11 +54,11 @@ export const DataAuthorizationScreen: React.FC<Props> = ({
     }
     if (expertId === 'family-medicine') {
       return {
-        name: '生活型態醫學專家',
+        name: '示範診所',
         avatarImg: '',
         isCustomAvatar: true,
         type: 'expert',
-        title: '生活型態醫學專家',
+        title: '示範診所',
         sub: '綠色處方燈',
       };
     }

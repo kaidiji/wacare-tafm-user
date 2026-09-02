@@ -261,7 +261,7 @@ export const LifestyleQuestionnaireFormScreen: React.FC<Props> = ({
                 已完成，待專家指派處方
               </h3>
               <p className="text-xs text-slate-500 leading-relaxed px-1">
-                生活型態醫學專家團隊已收到您的目標需求，專家將為您分析並開立專屬綠色處方與行動任務！
+                示範診所團隊已收到您的目標需求，專家將為您分析並開立專屬綠色處方與行動任務！
               </p>
             </div>
 
