@@ -1,0 +1,275 @@
+import React, { useState } from 'react';
+import {
+  Search,
+  MoreVertical,
+  Map,
+  Scan,
+  Sparkles,
+  Stethoscope
+} from 'lucide-react';
+import { ScreenId } from '../types';
+import { BottomNavBar } from './BottomNavBar';
+import { aimeeAvatar, blissAvatar } from '../constants/avatars';
+
+interface Props {
+  onNavigate: (screen: ScreenId) => void;
+  onSelectExpert: (expertId: string) => void;
+  step1Authorized: boolean;
+  authorizedExpert: string | null;
+  followedExperts: string[];
+  onToggleFollow: (expertId: string) => void;
+}
+
+interface ExpertItem {
+  id: string;
+  name: string;
+  type: string;
+  followers: string;
+  posts: string;
+  avatarType: 'bunny' | 'badge' | 'image';
+  badgeTitle?: string;
+  badgeSub?: string;
+  badgeBg?: string;
+  avatarImg?: string;
+  isSelectable?: boolean;
+  expertId?: string;
+  hasGreenPrescription?: boolean;
+}
+
+export const Scr04ExpertList: React.FC<Props> = ({
+  onNavigate,
+  onSelectExpert,
+  step1Authorized,
+  authorizedExpert,
+  followedExperts,
+  onToggleFollow,
+}) => {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // 專家名單資料
+  const allExperts: ExpertItem[] = [
+    {
+      id: 'quanyin',
+      name: '全銀運動',
+      type: '健康服務',
+      followers: '26,235 位追蹤者',
+      posts: '27,900 篇發問數',
+      avatarType: 'badge',
+      badgeTitle: '全銀',
+      badgeSub: '運動',
+      badgeBg: 'bg-[#392e66]',
+      hasGreenPrescription: true,
+      isSelectable: true,
+    },
+    {
+      id: 'family-medicine',
+      name: '生活型態醫學專家',
+      type: '健康服務',
+      followers: '42,580 位追蹤者',
+      posts: '9,820 篇發問數',
+      avatarType: 'badge',
+      badgeTitle: '健康',
+      badgeSub: '專家',
+      badgeBg: 'bg-gradient-to-br from-teal-600 via-teal-700 to-emerald-800',
+      hasGreenPrescription: true,
+      isSelectable: true,
+    },
+    {
+      id: 'wa-bunny',
+      name: 'Wa 邦尼 人工智慧',
+      type: '健康服務',
+      followers: '107,253 位追蹤者',
+      posts: '11,372 篇發問數',
+      avatarType: 'bunny',
+    },
+  ];
+
+  // 搜尋過濾
+  const displayedExperts = allExperts.filter((exp) => {
+    if (!searchTerm.trim()) return true;
+    return (
+      exp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      exp.type.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
+
+  return (
+    <div className="flex flex-col h-full bg-white font-sans antialiased text-slate-900 select-none overflow-hidden justify-between">
+      {/* 1. Header Bar with Centered Title & More Options */}
+      <header className="px-4 py-3 bg-white sticky top-0 z-20 flex items-center justify-between min-h-[3.25rem]">
+        <div className="w-8" />
+        
+        <h1 className="text-base font-black text-slate-900 tracking-tight text-center">
+          專家名單
+        </h1>
+
+        <button
+          className="p-1.5 -mr-1 text-slate-600 hover:text-slate-900 rounded-full hover:bg-slate-100 transition-colors cursor-pointer active:scale-95"
+          aria-label="更多選項"
+        >
+          <MoreVertical className="w-5 h-5 text-slate-400" />
+        </button>
+      </header>
+
+      {/* 2. Search & Tool Row (Map Icon + Search Input + Scan Icon) */}
+      <div className="px-4 py-2 bg-white flex items-center gap-3 shrink-0">
+        <button
+          className="p-1 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+          aria-label="地圖檢視"
+        >
+          <Map className="w-6 h-6 text-slate-700 stroke-[1.75]" />
+        </button>
+
+        <div className="relative flex-1 flex items-center">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="搜尋更多專家"
+            className="w-full pl-10 pr-4 py-2.5 bg-[#F2F3F6] rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 text-slate-800 font-medium"
+          />
+        </div>
+
+        <button
+          className="p-1 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+          aria-label="掃描條碼"
+        >
+          <Scan className="w-6 h-6 text-slate-700 stroke-[1.75]" />
+        </button>
+      </div>
+
+      {/* 3. Expert List Items */}
+      <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+        {displayedExperts.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 space-y-2">
+            <p className="text-sm font-bold text-slate-600">查無此專家</p>
+            <p className="text-xs">請嘗試搜尋其他關鍵字！</p>
+          </div>
+        ) : (
+          displayedExperts.map((exp) => {
+            const isAuthorized = step1Authorized && authorizedExpert === exp.id;
+
+            return (
+              <div
+                key={exp.id}
+                onClick={() => {
+                  if (exp.id === 'quanyin') {
+                    onNavigate('GREEN-PRESCRIPTION-TASKS');
+                  } else if (exp.id === 'family-medicine') {
+                    onNavigate('MESSAGES');
+                  } else if (exp.expertId) {
+                    onSelectExpert(exp.expertId);
+                  }
+                }}
+                className={`px-4 py-3.5 bg-white hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-3 ${
+                  exp.isSelectable ? 'cursor-pointer' : ''
+                }`}
+              >
+                {/* Left: Custom Avatar Badge */}
+                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  {exp.avatarType === 'bunny' ? (
+                    // Wa 邦尼 AI Avatar
+                    <div className="w-14 h-14 rounded-full bg-[#EBF5FE] border border-sky-200/80 flex flex-col items-center justify-center p-1 relative overflow-hidden shrink-0 shadow-2xs">
+                      <div className="text-[7px] text-sky-800 font-extrabold leading-none tracking-tighter text-center">
+                        AI人工智慧
+                      </div>
+                      <div className="w-6 h-6 rounded-md bg-amber-400 border border-amber-500 flex items-center justify-center my-0.5 shadow-2xs">
+                        <span className="text-[12px]">🐰</span>
+                      </div>
+                      <div className="flex items-center gap-0.5 leading-none">
+                        <span className="text-[7px] font-black text-sky-900">Wa邦尼</span>
+                        <span className="text-[6px] bg-red-500 text-white font-bold px-0.5 rounded-xs scale-90">
+                          24hr服務
+                        </span>
+                      </div>
+                    </div>
+                  ) : exp.id === 'quanyin' ? (
+                    // 全銀運動 Avatar Badge
+                    <div className="w-14 h-14 rounded-full bg-[#392e66] text-white flex flex-col items-center justify-center text-center p-1 leading-none shadow-2xs relative shrink-0 border border-white/20 overflow-hidden">
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,#5a4a9c_0%,#281e52_100%)]" />
+                      <div className="relative z-10 flex flex-col items-center">
+                        <span className="text-[11px] font-black tracking-tight leading-none text-white">
+                          全銀
+                        </span>
+                        <span className="text-[11px] font-black tracking-tight leading-none text-white mt-0.5">
+                          運動
+                        </span>
+                        <span className="text-[7px] text-[#f37021] font-black mt-0.5">
+                          🧡 WaCare
+                        </span>
+                      </div>
+                    </div>
+                  ) : exp.avatarType === 'badge' ? (
+                    // Circular Medical/Service Badge
+                    <div
+                      className={`w-14 h-14 rounded-full ${exp.badgeBg} text-white flex flex-col items-center justify-center text-center p-1 leading-none shadow-2xs relative shrink-0 border border-white/20`}
+                    >
+                      <span className="text-[11px] font-black tracking-tight leading-tight drop-shadow-xs">
+                        {exp.badgeTitle}
+                        <br />
+                        {exp.badgeSub}
+                      </span>
+                      <span className="text-[7px] text-amber-200 font-bold mt-0.5 tracking-tighter">
+                        ❤️ WaCare
+                      </span>
+                    </div>
+                  ) : (
+                    // Image Avatar
+                    <div className="w-14 h-14 rounded-full overflow-hidden shrink-0 border border-slate-200 shadow-2xs">
+                      <img
+                        src={exp.avatarImg}
+                        alt={exp.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+
+                  {/* Middle Information */}
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h2 className="font-bold text-slate-900 text-sm tracking-tight truncate">
+                        {exp.name}
+                      </h2>
+                      {isAuthorized && (
+                        <span className="text-[9px] bg-emerald-100 text-emerald-800 font-black px-1.5 py-0.2 rounded-full shrink-0">
+                          已授權
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-xs text-slate-500 font-medium">
+                      {exp.type}
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs font-medium">
+                      <span className="text-slate-500">{exp.followers}</span>
+                      <span className="text-[#E65100] font-bold">{exp.posts}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: "訊息" Pill Button */}
+                <div
+                  className="shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('MESSAGES')}
+                    className="px-4 py-1.5 bg-[#F0F2F5] hover:bg-[#E4E6EA] active:scale-95 text-slate-800 font-bold text-xs rounded-full transition-all cursor-pointer shadow-2xs"
+                  >
+                    訊息
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Shared Bottom Navigation Bar */}
+      <BottomNavBar activeTab="expert" onNavigate={onNavigate} />
+    </div>
+  );
+};
