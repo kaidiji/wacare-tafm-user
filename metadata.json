@@ -1,0 +1,8 @@
+{
+  "name": "綠色處方-wecare(醫師派發處方版本)",
+  "description": "",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
