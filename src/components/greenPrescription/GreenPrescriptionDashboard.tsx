@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -26,12 +26,13 @@ import {
   Film,
 } from 'lucide-react';
 import { VideoTask } from './greenPrescriptionData';
-import { LifestyleQuestionnaireRecord, ScreenId } from '../../types';
+import { LifestyleQuestionnaireRecord, QuestionnaireView, ScreenId, VideoViewRecord } from '../../types';
 import {
   DoctorPrescriptionSection,
   getDoctorPrescriptionSection,
   normalizePillarKey,
 } from './doctorPrescriptionsData';
+import { calculateGreenPrescriptionProgress } from './greenPrescriptionProgress';
 
 // Custom Pie Chart Icon matching IMG_9026.PNG
 const DataPieGlyph: React.FC<{ className?: string }> = ({ className = 'w-5 h-5 text-[#f37021]' }) => (
@@ -60,13 +61,16 @@ interface Props {
   isQuestionnaireSubmitted?: boolean;
   isPrescriptionDispatched?: boolean;
   onDispatchPrescription?: () => void;
-  onNavigateToQuestionnaire?: (mode?: 'list' | 'form' | 'result') => void;
+  onNavigateToQuestionnaire?: (mode?: QuestionnaireView) => void;
   onNavigateToExperts?: () => void;
   onNavigate?: (screen: ScreenId) => void;
   prescriptionData: Record<string, DoctorPrescriptionSection>;
   onTogglePrescriptionItem: (pillarKey: string, itemId: string) => void;
   assignedPrescriptions: AssignedExpertPrescription[];
   questionnaireHistory?: LifestyleQuestionnaireRecord[];
+  selectedDate?: Date;
+  onSelectedDateChange?: (date: Date) => void;
+  videoViewHistory?: VideoViewRecord[];
 }
 
 export const GreenPrescriptionDashboard: React.FC<Props> = ({
@@ -85,8 +89,10 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   onTogglePrescriptionItem,
   assignedPrescriptions = [],
   questionnaireHistory = [],
+  selectedDate = new Date(),
+  onSelectedDateChange,
+  videoViewHistory = [],
 }) => {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date(2026, 7, 27)); // 2026年8月27日 (星期四)
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showStatsDetailView, setShowStatsDetailView] = useState(false);
@@ -94,6 +100,8 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   
   // State for data analysis interval switcher (matching IMG_9026.PNG)
   const [analysisInterval, setAnalysisInterval] = useState<'week' | 'month' | 'quarter'>('week');
+  const trendCarouselRef = useRef<HTMLDivElement>(null);
+  const [activeTrendIndex, setActiveTrendIndex] = useState(0);
 
   // State for expanded week cards in data analysis view (matching IMG_9026.PNG)
   const [expandedWeekIds, setExpandedWeekIds] = useState<Record<string, boolean>>({
@@ -106,7 +114,8 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   const [selectedRawDataModalWeekIndex, setSelectedRawDataModalWeekIndex] = useState<number | null>(null);
 
   // Modal states for 數據執行紀錄清單 兩大項
-  const [selectedLifestyleModalRecord, setSelectedLifestyleModalRecord] = useState<any | null>(null);
+  const [selectedLifestyleRecord, setSelectedLifestyleRecord] = useState<any | null>(null);
+  const [lifestyleRecordFilter, setLifestyleRecordFilter] = useState<'all' | 'achieved' | 'incomplete'>('all');
   const [selectedVideoModalRecord, setSelectedVideoModalRecord] = useState<any | null>(null);
 
   // State for expanding/collapsing data analysis categories (matching IMG_9026.PNG format)
@@ -126,10 +135,16 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   const [showUnassignedAlert, setShowUnassignedAlert] = useState(false);
   const [showQuestionnaireMenu, setShowQuestionnaireMenu] = useState(false);
 
+  useEffect(() => {
+    if (isPrescriptionDispatched) {
+      setShowUnassignedAlert(false);
+      setSelectedCategoryTab('ALL');
+    }
+  }, [isPrescriptionDispatched]);
+
   // State for displaying the full prescription details page
   const [showPrescriptionDetailsView, setShowPrescriptionDetailsView] = useState(false);
   const [selectedPrescriptionForDetail, setSelectedPrescriptionForDetail] = useState<AssignedExpertPrescription | null>(null);
-  const [activePrescriptionDetailInfo, setActivePrescriptionDetailInfo] = useState<string | null>(null);
   const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('ALL');
 
   // Category Tabs Horizontal Scroll & Drag Support
@@ -171,17 +186,18 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   const activeAssignedPrescriptions = assignedPrescriptions;
 
   // Has the doctor assigned prescriptions
-  const isDoctorAssigned = isPrescriptionDispatched || assignedGoals.length > 0 || assignedPrescriptions.length > 0;
+  const hasAssignedPrescription = isPrescriptionDispatched && Object.keys(prescriptionData).length > 0 && assignedPrescriptions.length > 0;
+  const isDoctorAssigned = hasAssignedPrescription;
+  const hasQuestionnaire = questionnaireHistory.length > 0;
+  const greenPrescriptionProgress = calculateGreenPrescriptionProgress({
+    isPrescriptionDispatched,
+    doctorPrescriptions: prescriptionData,
+    videoTasks: tasks,
+  });
 
   // Active goals list (defaults to user's submitted goals if assigned)
   const displayGoals = assignedGoals.length > 0 ? assignedGoals : submittedGoals;
-  const activeGoalKeys = isDoctorAssigned
-    ? displayGoals.length > 0
-      ? displayGoals
-      : ['運動習慣', '飲食習慣']
-    : displayGoals.length > 0
-    ? displayGoals
-    : ['運動習慣', '飲食習慣'];
+  const activeGoalKeys = isDoctorAssigned ? displayGoals : [];
 
   const toggleItemCheck = (pillarKey: string, itemId: string) => {
     onTogglePrescriptionItem(pillarKey, itemId);
@@ -191,7 +207,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   const currentDetailPrescription = selectedPrescriptionForDetail || activeAssignedPrescriptions[0];
   const currentDetailGoals = currentDetailPrescription?.assignedGoals?.length > 0
     ? currentDetailPrescription.assignedGoals
-    : ['運動習慣', '飲食習慣'];
+    : [];
 
   // Calculate total prescribed items and completed count for selected detail prescription
   let detailTotalItems = 0;
@@ -222,80 +238,27 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
       ? Math.round((detailCompletedItems / detailTotalItems) * 100)
       : 0;
 
+  const assignedSections = Object.values(prescriptionData) as DoctorPrescriptionSection[];
+  const assignedPrescriptionItems = Array.from(new Map(
+    assignedSections.flatMap((section) => section.items).map((item) => [item.id, item])
+  ).values());
+  const prescriptionCompletionRate = assignedPrescriptionItems.length > 0
+    ? Math.min(100, Math.max(0, Math.round((assignedPrescriptionItems.filter((item) => item.completed).length / assignedPrescriptionItems.length) * 100)))
+    : 0;
+  const categoryStats = assignedSections.map((section) => ({
+    id: section.id,
+    title: section.categoryTitle,
+    total: section.items.length,
+    completed: section.items.filter((item) => item.completed).length,
+    percentage: section.items.length > 0 ? Math.round((section.items.filter((item) => item.completed).length / section.items.length) * 100) : 0,
+  }));
+
   // Global counts fallback
-  let totalPrescriptionItems = detailTotalItems;
-  let completedPrescriptionItems = detailCompletedItems;
-  let prescriptionProgressPercent = detailProgressPercent;
-
-  // Selected week on the weekly trend line chart
-  const [selectedTrendWeekIndex, setSelectedTrendWeekIndex] = useState<number>(4); // Default to current week (index 4)
-
-  // Weekly task completion trend history data (過去4週 + 本週)
-  const weeklyTrendData = useMemo(() => {
-    const total = totalPrescriptionItems > 0 ? totalPrescriptionItems : 8;
-    return [
-      {
-        weekLabel: '第 1 週',
-        shortLabel: 'W1',
-        dateRange: '08/04 ~ 08/10',
-        completed: Math.min(total, Math.max(1, Math.round(total * 0.75))),
-        total: total,
-        percent: 75,
-        status: 'pass' as const,
-        statusText: '順利達標',
-      },
-      {
-        weekLabel: '第 2 週',
-        shortLabel: 'W2',
-        dateRange: '08/11 ~ 08/17',
-        completed: Math.min(total, Math.max(1, Math.round(total * 0.88))),
-        total: total,
-        percent: 88,
-        status: 'pass' as const,
-        statusText: '優秀達標',
-      },
-      {
-        weekLabel: '第 3 週',
-        shortLabel: 'W3',
-        dateRange: '08/18 ~ 08/24',
-        completed: Math.min(total, Math.max(1, Math.round(total * 0.63))),
-        total: total,
-        percent: 63,
-        status: 'warning' as const,
-        statusText: '部分完成',
-      },
-      {
-        weekLabel: '第 4 週',
-        shortLabel: 'W4',
-        dateRange: '08/25 ~ 08/31',
-        completed: total,
-        total: total,
-        percent: 100,
-        status: 'pass' as const,
-        statusText: '滿分達標',
-      },
-      {
-        weekLabel: '本週',
-        shortLabel: '本週',
-        dateRange: '09/01 ~ 09/07',
-        completed: completedPrescriptionItems,
-        total: totalPrescriptionItems > 0 ? totalPrescriptionItems : total,
-        percent: prescriptionProgressPercent,
-        status:
-          prescriptionProgressPercent >= 75
-            ? ('pass' as const)
-            : prescriptionProgressPercent > 0
-            ? ('in_progress' as const)
-            : ('warning' as const),
-        statusText:
-          prescriptionProgressPercent >= 75
-            ? '本週已順利達標'
-            : prescriptionProgressPercent > 0
-            ? `進行中 (剩餘 ${Math.max(0, (totalPrescriptionItems > 0 ? totalPrescriptionItems : total) - completedPrescriptionItems)} 項)`
-            : '本週待執行',
-      },
-    ];
-  }, [totalPrescriptionItems, completedPrescriptionItems, prescriptionProgressPercent]);
+  let totalPrescriptionItems = greenPrescriptionProgress.prescriptionTotal;
+  let completedPrescriptionItems = greenPrescriptionProgress.prescriptionCompleted;
+  let prescriptionProgressPercent = greenPrescriptionProgress.prescriptionTotal > 0
+    ? Math.round((greenPrescriptionProgress.prescriptionCompleted / greenPrescriptionProgress.prescriptionTotal) * 100)
+    : 0;
 
   // Weekly target & completed count for videos
   const [weeklyTarget] = useState<number>(() => {
@@ -307,8 +270,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
     }
   });
 
-  const completedTasks = tasks.filter((t) => t.completed);
-  const completedCount = completedTasks.length;
+  const completedCount = new Set(tasks.filter((t) => t.completed).map((t) => t.id)).size;
   const videoProgressRatio =
     weeklyTarget > 0 ? Math.min(100, Math.round((completedCount / weeklyTarget) * 100)) : 0;
 
@@ -317,7 +279,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
     return names[d.getDay()];
   };
 
-  const handleGoToQuestionnaire = (mode: 'list' | 'form' | 'result' = 'form') => {
+  const handleGoToQuestionnaire = (mode: QuestionnaireView = 'form') => {
     setShowUnassignedAlert(false);
     if (onNavigateToQuestionnaire) {
       onNavigateToQuestionnaire(mode);
@@ -941,14 +903,45 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
       }
     ];
 
-    const activeRecordsList = analysisInterval === 'month' 
-      ? monthlyRecordsList 
-      : analysisInterval === 'quarter' 
-      ? quarterlyRecordsList 
-      : rawWeeklyRecordsList;
+    const periodRange = (() => {
+      const anchor = new Date(selectedDate);
+      if (analysisInterval === 'month') {
+        return { start: new Date(anchor.getFullYear(), anchor.getMonth(), 1), end: new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0) };
+      }
+      if (analysisInterval === 'quarter') {
+        const quarterMonth = Math.floor(anchor.getMonth() / 3) * 3;
+        return { start: new Date(anchor.getFullYear(), quarterMonth, 1), end: new Date(anchor.getFullYear(), quarterMonth + 3, 0) };
+      }
+      const start = new Date(anchor);
+      start.setDate(anchor.getDate() - anchor.getDay());
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      return { start, end };
+    })();
+    const formatRange = (start: Date, end: Date) => `${start.getFullYear()}/${String(start.getMonth() + 1).padStart(2, '0')}/${String(start.getDate()).padStart(2, '0')} 至 ${end.getFullYear()}/${String(end.getMonth() + 1).padStart(2, '0')}/${String(end.getDate()).padStart(2, '0')}`;
+    const liveAnalysisRecords = hasAssignedPrescription ? [{
+      id: `current-${analysisInterval}`,
+      dateRange: formatRange(periodRange.start, periodRange.end),
+      prescriptionCompleted: assignedPrescriptionItems.filter((item) => item.completed).length,
+      prescriptionTotal: assignedPrescriptionItems.length,
+      videoCompleted: completedCount,
+      videoTotal: weeklyTarget,
+      percent: prescriptionCompletionRate,
+      lifestyleTypes: categoryStats.map((category) => ({
+        typeName: category.title,
+        completed: category.completed,
+        total: category.total,
+        isAchieved: category.completed === category.total && category.total > 0,
+        items: assignedSections
+          .find((section) => section.categoryTitle === category.title)?.items
+          .map((item) => ({ title: item.title, isAchieved: item.completed, countText: item.completed ? '已完成' : '未完成' })) ?? [],
+      })),
+      videoList: tasks.map((task) => ({ id: task.id, title: task.title, duration: '', watched: task.completed, watchedTime: '' })),
+    }] : [];
+    const activeRecordsList = liveAnalysisRecords;
 
     return (
-      <div className="flex flex-col h-full bg-[#f8f9fa] font-sans antialiased text-slate-900 overflow-hidden animate-in fade-in duration-200">
+      <div data-analysis-screen-visible="true" data-analysis-prescription-dispatched={String(isPrescriptionDispatched)} data-analysis-prescription-count={assignedPrescriptionItems.length} data-analysis-prescription-history-count={questionnaireHistory.length} data-analysis-video-count={tasks.length} data-analysis-video-view-count={videoViewHistory.length} data-prescription-total={totalPrescriptionItems} data-prescription-completed={completedPrescriptionItems} data-prescription-incomplete={Math.max(0, totalPrescriptionItems - completedPrescriptionItems)} data-prescription-percentage={hasAssignedPrescription ? prescriptionCompletionRate : ''} data-prescription-history-count={questionnaireHistory.length} data-prescription-chart-point-count={hasAssignedPrescription ? 1 : 0} className="flex flex-col h-full bg-[#f8f9fa] font-sans antialiased text-slate-900 overflow-hidden animate-in fade-in duration-200">
         
         {/* 1. Top Header */}
         <header className="px-4 py-3 bg-white border-b border-slate-100 shrink-0 flex items-center justify-between min-h-[3.25rem] relative z-20">
@@ -1019,35 +1012,27 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
             {/* Selected Date Range Text */}
             <div className="pt-1">
               <div className="text-base font-extrabold text-slate-900 tracking-tight">
-                {analysisInterval === 'week' && '2026/08/25 至 2026/08/31'}
-                {analysisInterval === 'month' && '2026/08/01 至 2026/08/31'}
-                {analysisInterval === 'quarter' && '2026/06/01 至 2026/08/31'}
+                {formatRange(periodRange.start, periodRange.end)}
               </div>
               <div className="text-xs text-slate-500 font-medium mt-0.5">
-                {analysisInterval === 'week' && '共7天'}
-                {analysisInterval === 'month' && '共31天'}
-                {analysisInterval === 'quarter' && '共92天'}
+                共{Math.round((periodRange.end.getTime() - periodRange.start.getTime()) / 86400000) + 1}天
               </div>
             </div>
           </div>
 
           {/* Section: 折線圖趨勢分析 */}
+          <div ref={trendCarouselRef} onScroll={(event) => { const target = event.currentTarget; setActiveTrendIndex(Math.round(target.scrollLeft / Math.max(1, target.clientWidth))); }} className={`flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${!(hasAssignedPrescription || videoViewHistory.length > 0) ? 'hidden' : ''}`}>
           {(() => {
-            const chartData = analysisInterval === 'month' ? [
-              { label: '6月', val: 60, sub: '24/40項' },
-              { label: '7月', val: 88, sub: '35/40項' },
-              { label: '8月', val: 70, sub: '28/40項' },
-            ] : analysisInterval === 'quarter' ? [
-              { label: '2026 Q1', val: 65, sub: '78/120項' },
-              { label: '2026 Q2', val: 79, sub: '95/120項' },
-              { label: '2026 Q3', val: 73, sub: '87/120項' },
-            ] : [
-              { label: '07/28', val: 40, sub: '4/10項' },
-              { label: '08/04', val: 80, sub: '8/10項' },
-              { label: '08/11', val: 60, sub: '6/10項' },
-              { label: '08/18', val: 100, sub: '10/10項' },
-              { label: '08/25', val: Math.round((completedPrescriptionItems / 10) * 100), sub: `${completedPrescriptionItems}/10項` },
-            ];
+            const chartData = hasAssignedPrescription ? [{
+              label: analysisInterval === 'quarter'
+                ? `${periodRange.start.getFullYear()} Q${Math.floor(periodRange.start.getMonth() / 3) + 1}`
+                : analysisInterval === 'month'
+                  ? `${periodRange.start.getFullYear()}/${String(periodRange.start.getMonth() + 1).padStart(2, '0')}`
+                  : `${String(periodRange.start.getMonth() + 1).padStart(2, '0')}/${String(periodRange.start.getDate()).padStart(2, '0')}`,
+              val: prescriptionCompletionRate,
+              sub: `${completedPrescriptionItems}/${totalPrescriptionItems}項`,
+            }] : [];
+            if (chartData.length === 0) return null;
 
             const n = chartData.length;
             const width = 320;
@@ -1066,10 +1051,10 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
             });
 
             const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-            const areaD = `${pathD} L ${points[points.length - 1].x.toFixed(1)} ${(height - paddingBottom).toFixed(1)} L ${points[0].x.toFixed(1)} ${(height - paddingBottom).toFixed(1)} Z`;
+            const areaD = points.length > 0 ? `${pathD} L ${points[points.length - 1].x.toFixed(1)} ${(height - paddingBottom).toFixed(1)} L ${points[0].x.toFixed(1)} ${(height - paddingBottom).toFixed(1)} Z` : '';
 
             return (
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3">
+              <div className="min-w-full snap-start bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0">
@@ -1132,20 +1117,13 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
                     })}
 
                     {/* Area fill */}
-                    <path d={areaD} fill="url(#amberTrendGradient)" />
+                    {points.length > 0 && <path d={areaD} fill="url(#amberTrendGradient)" />}
 
                     {/* Line path */}
-                    <path
-                      d={pathD}
-                      fill="none"
-                      stroke="#f59e0b"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
+                    {points.length > 0 && <path d={pathD} fill="none" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
 
                     {/* Points & Value labels */}
-                    {points.map((p, idx) => (
+                    {points.length === 0 ? <text x={width / 2} y={height / 2} textAnchor="middle" fontSize="12" fontWeight="700" fill="#64748b">尚無資料</text> : points.map((p, idx) => (
                       <g key={idx} className="transition-all">
                         {/* Outer glow ring */}
                         <circle
@@ -1195,6 +1173,31 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
             );
           })()}
 
+          {videoViewHistory.length > 0 && (() => {
+            const events = videoViewHistory
+              .map((event) => ({ ...event, date: new Date(event.viewedAt) }))
+              .filter((event) => event.date <= new Date(periodRange.end.getFullYear(), periodRange.end.getMonth(), periodRange.end.getDate(), 23, 59, 59) && event.date >= periodRange.start)
+              .reduce<Record<string, number>>((acc, event) => {
+                const key = `${event.date.getFullYear()}-${String(event.date.getMonth() + 1).padStart(2, '0')}-${String(event.date.getDate()).padStart(2, '0')}`;
+                acc[key] = (acc[key] ?? 0) + 1;
+                return acc;
+              }, {});
+            const points = Object.entries(events).sort(([a], [b]) => a.localeCompare(b)).slice(-10);
+            const maxViews = Math.max(...points.map(([, views]) => views), 0);
+            const yMax = maxViews <= 5 ? 5 : Math.ceil(maxViews / 5) * 5;
+            return (
+              <div className="min-w-full snap-start bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3 overflow-x-auto">
+                <div className="flex items-center justify-between"><div><h3 className="text-sm font-black text-slate-900">影片觀看數趨勢</h3><p className="text-[11px] font-medium text-slate-500">依實際播放次數統計，同一影片重複觀看會重複計算</p></div><span className="text-[11px] font-extrabold text-blue-700">觀看次數</span></div>
+                {points.length === 0 ? <p className="py-6 text-center text-xs text-slate-500">尚無資料</p> : <div className="min-w-[320px]">
+                  <div className="flex items-end gap-2 h-36 px-2">{points.map(([date, views]) => <div key={date} className="flex h-full flex-1 flex-col items-center justify-end gap-1"><span className="text-[10px] font-bold text-blue-700">{views}</span><div className="w-full max-w-8 rounded-t bg-blue-400" style={{ height: `${Math.max(4, (views / yMax) * 100)}%` }} /><span className="text-[9px] text-slate-500">{date.slice(5).replace('-', '/')}</span></div>)}</div>
+                  <div className="mt-1 flex justify-between text-[9px] text-slate-400"><span>0</span><span>{yMax}</span></div>
+                </div>}
+              </div>
+            );
+          })()}
+          </div>
+          {(hasAssignedPrescription || videoViewHistory.length > 0) && <div className="flex justify-center gap-1.5" aria-label="趨勢圖切換"><button type="button" aria-label="顯示處方達成率趨勢" onClick={() => trendCarouselRef.current?.scrollTo({ left: 0, behavior: 'smooth' })} className={`h-2 w-2 rounded-full ${activeTrendIndex === 0 ? 'bg-orange-500' : 'bg-slate-300'}`} />{hasAssignedPrescription && videoViewHistory.length > 0 && <button type="button" aria-label="顯示影片觀看數趨勢" onClick={() => trendCarouselRef.current?.scrollTo({ left: trendCarouselRef.current.clientWidth, behavior: 'smooth' })} className={`h-2 w-2 rounded-full ${activeTrendIndex === 1 ? 'bg-orange-500' : 'bg-slate-300'}`} />}</div>}
+
           {/* Section: 數據執行紀錄清單 (含兩大項：生活型態處方 + 衛教影片任務) */}
           <div className="space-y-4 pt-1">
             <div className="text-xs font-extrabold text-slate-500 px-1">
@@ -1209,15 +1212,16 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-900">生活型態處方</h3>
-                  <p className="text-[11px] font-medium text-slate-500">點選右側箭頭開啟彈窗查看各類型達成狀態</p>
                 </div>
               </div>
 
               <div className="divide-y divide-slate-100">
-                {activeRecordsList.map((row) => (
+                {activeRecordsList.length === 0 ? (
+                  <p className="py-3 text-xs text-slate-500">尚未收到專家指派的生活型態處方</p>
+                ) : activeRecordsList.map((row) => (
                   <div
                     key={`lifestyle-${row.id}`}
-                    onClick={() => setSelectedLifestyleModalRecord(row)}
+                    onClick={() => { setLifestyleRecordFilter('all'); setSelectedLifestyleRecord(row); }}
                     className="py-3 flex items-center justify-between cursor-pointer hover:bg-amber-50/40 rounded-xl px-2 transition-colors group select-none"
                   >
                     <div className="space-y-0.5">
@@ -1282,146 +1286,30 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
         </div>
 
         {/* 彈窗 1: 生活型態處方彈窗 (依各類型呈現是否有達成，簡潔不呈現過多資訊與補卡) */}
-        {selectedLifestyleModalRecord && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden p-5 space-y-4 border border-slate-100">
-              {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div>
-                  <h3 className="text-sm font-black text-slate-900">
-                    生活型態處方紀錄
-                  </h3>
-                  <p className="text-xs font-extrabold text-[#f37021] mt-0.5">
-                    {selectedLifestyleModalRecord.dateRange}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setSelectedLifestyleModalRecord(null)}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Types & Prescription Status */}
-              {analysisInterval === 'month' || analysisInterval === 'quarter' ? (
-                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-                  <div className="text-xs font-extrabold text-slate-500 px-0.5">
-                    {analysisInterval === 'month' ? '月度處方各類型達成率' : '季度處方各類型達成率'}
-                  </div>
-
-                  {selectedLifestyleModalRecord.lifestyleTypes.map((typeGroup: any) => {
-                    const rate = typeGroup.total > 0 ? Math.round((typeGroup.completed / typeGroup.total) * 100) : 0;
-                    return (
-                      <div
-                        key={typeGroup.typeName}
-                        className="p-3.5 bg-slate-50/90 rounded-xl border border-slate-200/80 space-y-2.5"
-                      >
-                        {/* Category Header */}
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-black text-slate-800">
-                            {typeGroup.typeName}
-                          </span>
-                          <span
-                            className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md ${
-                              rate >= 100
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : rate >= 60
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-rose-100 text-rose-800'
-                            }`}
-                          >
-                            達成率 {rate}% ({typeGroup.completed}/{typeGroup.total}次)
-                          </span>
-                        </div>
-
-                        {/* Progress Bar */}
-                        <div className="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-300 ${
-                              rate >= 100
-                                ? 'bg-emerald-500'
-                                : rate >= 60
-                                ? 'bg-amber-500'
-                                : 'bg-rose-500'
-                            }`}
-                            style={{ width: `${Math.min(100, rate)}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-                  {selectedLifestyleModalRecord.lifestyleTypes.map((typeGroup: any) => (
-                    <div
-                      key={typeGroup.typeName}
-                      className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-2"
-                    >
-                      {/* Category Header */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                          {typeGroup.typeName}
-                          <span className="text-[11px] font-bold text-slate-500">
-                            ({typeGroup.completed}/{typeGroup.total}次)
-                          </span>
-                        </span>
-                        <span
-                          className={`text-[11px] font-extrabold px-2 py-0.5 rounded-md ${
-                            typeGroup.isAchieved
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {typeGroup.isAchieved ? '✅ 已達成' : '❌ 未達成'}
-                        </span>
-                      </div>
-
-                      {/* Prescriptions List under this category */}
-                      <div className="space-y-1.5 pt-1 border-t border-slate-200/60">
-                        {typeGroup.items.map((item: any, idx: number) => (
-                          <div
-                            key={idx}
-                            className="bg-white p-2.5 rounded-lg border border-slate-100 flex items-start justify-between gap-2"
-                          >
-                            <div className="space-y-0.5">
-                              <div className="text-xs text-slate-700 font-medium leading-relaxed">
-                                {item.title}
-                              </div>
-                              {item.countText && (
-                                <div className="text-[10.5px] font-bold text-slate-400">
-                                  進度：{item.countText}
-                                </div>
-                              )}
-                            </div>
-                            <span
-                              className={`text-[10.5px] font-bold shrink-0 px-1.5 py-0.2 rounded ${
-                                item.isAchieved
-                                  ? 'text-emerald-700 bg-emerald-50'
-                                  : 'text-slate-500 bg-slate-100'
-                              }`}
-                            >
-                              {item.isAchieved ? '已達成' : '未達成'}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Close Button */}
-              <button
-                onClick={() => setSelectedLifestyleModalRecord(null)}
-                className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black cursor-pointer hover:bg-slate-800 transition-colors"
-              >
-                關閉
-              </button>
-            </div>
-          </div>
-        )}
+        {selectedLifestyleRecord && (() => {
+          const sourceGroups = selectedLifestyleRecord.lifestyleTypes || [];
+          const allItems = sourceGroups.flatMap((group: any) => group.items || []);
+          const achievedItems = allItems.filter((item: any) => item.isAchieved);
+          const incompleteItems = allItems.filter((item: any) => !item.isAchieved);
+          const filterOptions = [
+            { key: 'all' as const, label: '全部', count: allItems.length },
+            { key: 'achieved' as const, label: '已達成', count: achievedItems.length },
+            { key: 'incomplete' as const, label: '未達成', count: incompleteItems.length },
+          ];
+          const visibleGroups = sourceGroups.map((group: any) => {
+            const groupAchieved = (group.items || []).filter((item: any) => item.isAchieved);
+            const groupIncomplete = (group.items || []).filter((item: any) => !item.isAchieved);
+            const visibleItems = lifestyleRecordFilter === 'achieved' ? groupAchieved : lifestyleRecordFilter === 'incomplete' ? groupIncomplete : [...groupAchieved, ...groupIncomplete];
+            return { ...group, visibleItems, groupAchieved, groupIncomplete };
+          }).filter((group: any) => group.visibleItems.length > 0);
+          return <div data-lifestyle-record-page="grouped" data-lifestyle-record-page-version="page-v1" className="absolute inset-0 z-30 flex flex-col bg-slate-50 font-sans text-slate-900">
+            <div className="flex items-center border-b border-slate-200 bg-white px-4 py-3"><button type="button" onClick={() => setSelectedLifestyleRecord(null)} className="mr-3 rounded-full p-1 text-slate-600 hover:bg-slate-100" aria-label="返回綠色處方"><ChevronLeft className="h-6 w-6" /></button><div><h3 className="text-base font-black">生活型態處方紀錄</h3><p className="text-xs font-bold text-[#f37021]">{selectedLifestyleRecord.dateRange}</p></div></div>
+            <div className="flex-1 overflow-y-auto p-4"><div className="mx-auto w-full max-w-md space-y-4">
+              <div data-lifestyle-record-filter={lifestyleRecordFilter} className="grid grid-cols-3 gap-2 rounded-xl bg-slate-100 p-1">{filterOptions.map((option) => <button type="button" key={option.key} data-filter-key={option.key} onClick={() => setLifestyleRecordFilter(option.key)} className={`rounded-lg px-2 py-2 text-xs font-black ${lifestyleRecordFilter === option.key ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500'}`}>{option.label} <span className="ml-1 text-[10px]">{option.count}</span></button>)}</div>
+              <div data-lifestyle-record-page="grouped" className="space-y-5">{visibleGroups.length === 0 ? <p className="py-8 text-center text-xs text-slate-500">目前沒有{lifestyleRecordFilter === 'achieved' ? '已達成' : '未達成'}項目</p> : visibleGroups.map((group: any, groupIndex: number) => <section key={group.id || group.typeName || groupIndex} data-prescription-group={group.id || group.typeName} data-group-total={(group.items || []).length} data-group-achieved={group.groupAchieved.length} data-group-incomplete={group.groupIncomplete.length} className="space-y-2"><div className="flex items-center justify-between border-b border-slate-200 pb-2"><h4 className="text-sm font-black text-slate-800">{group.typeName}</h4><span className="text-xs font-bold text-slate-500">{lifestyleRecordFilter === 'all' ? `${group.groupAchieved.length} / ${(group.items || []).length} 已達成` : `${group.visibleItems.length} 項`}</span></div>{group.visibleItems.map((item: any, index: number) => <div key={`${item.title}-${index}`} data-prescription-status={item.isAchieved ? 'achieved' : 'incomplete'} className="flex items-start justify-between gap-3 border-b border-slate-100 py-2.5"><span className="text-xs font-medium leading-relaxed text-slate-700">{item.title}</span><span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${item.isAchieved ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{item.isAchieved ? '已達成' : '未達成'}</span></div>)}</section>)}</div>
+            </div></div>
+          </div>;
+        })()}
 
         {/* 彈窗 2: 衛教影片任務彈窗 (直接呈現有看哪幾部影片) */}
         {selectedVideoModalRecord && (() => {
@@ -1519,15 +1407,9 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
             <span className="text-xs font-bold text-slate-700">綠色處方</span>
           </button>
 
-          <h1 className="text-[1.0625rem] font-black text-slate-900 tracking-tight">
-            {currentDetailPrescription?.expertName || '示範診所'}指派處方明細
-          </h1>
+          <h1 className="text-[1.0625rem] font-black text-slate-900 tracking-tight">處方清單</h1>
 
-          <div className="w-14 text-right">
-            <span className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-              生效中
-            </span>
-          </div>
+          <div className="w-14" aria-hidden="true" />
         </header>
 
         {/* Progress & Doctor Info Banner */}
@@ -1538,11 +1420,9 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
                 {currentDetailPrescription?.expertEmoji || '👨‍⚕️'}
               </div>
               <div>
-                <div className="text-xs font-bold text-slate-600">
-                  開立專家：{currentDetailPrescription?.expertName || '示範診所'}
-                </div>
+                <div className="text-xs font-bold text-slate-500">開立專家</div>
                 <div className="text-sm font-black text-slate-900">
-                  {currentDetailPrescription?.expertName || '示範診所'}個人化生活型態指派處方
+                  {currentDetailPrescription?.expertName || '示範診所'}
                 </div>
               </div>
             </div>
@@ -1560,7 +1440,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
           {/* Progress bar */}
           <div className="space-y-1">
             <div className="flex justify-between text-[11px] font-bold text-slate-600">
-              <span>今日處方執行達成率</span>
+              <span>整體完成度</span>
               <span className="text-orange-600 font-extrabold">{detailProgressPercent}%</span>
             </div>
             <div className="w-full bg-orange-200/60 h-2.5 rounded-full overflow-hidden">
@@ -1671,22 +1551,21 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
                 key={section.id}
                 className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-2xs space-y-3.5"
               >
-                {/* Category Header with Right Arrow */}
-                <div
-                  onClick={() => setActivePrescriptionDetailInfo(section.categoryTitle)}
-                  className="flex items-center justify-between cursor-pointer group"
-                >
-                  <h2 className="text-sm font-bold text-slate-600 group-hover:text-slate-900 transition-colors">
+                {/* Category Header */}
+                <div className="flex items-center">
+                  <h2 className="text-sm font-bold text-slate-600">
                     {section.categoryTitle}
                   </h2>
-                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-slate-700 group-hover:translate-x-0.5 transition-all" />
                 </div>
 
                 {/* Items List (Big Bold Text + Green Checkbox Box on Right matching reference image) */}
                 <div className="space-y-3">
-                  {section.items.map((item) => (
+                  {section.items.map((item, index) => (
+                    <React.Fragment key={item.id}>
+                    {(index === 0 || item.level === 'enhanced' && section.items[index - 1]?.level !== 'enhanced') && (
+                      <div className="pt-1 text-[11px] font-black text-slate-500">{item.level === 'enhanced' ? '個別化加強處方' : '基本處方'}</div>
+                    )}
                     <div
-                      key={item.id}
                       onClick={() => toggleItemCheck(section.pillarKey, item.id)}
                       className="flex items-center justify-between gap-3 cursor-pointer select-none group"
                     >
@@ -1713,6 +1592,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
                         )}
                       </div>
                     </div>
+                    </React.Fragment>
                   ))}
                 </div>
               </div>
@@ -1729,36 +1609,6 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Modal: Category Info Modal */}
-        {activePrescriptionDetailInfo && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden p-5 space-y-4 border border-slate-100">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                <h3 className="text-base font-black text-slate-900">
-                  {activePrescriptionDetailInfo} 指引說明
-                </h3>
-                <button
-                  onClick={() => setActivePrescriptionDetailInfo(null)}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-950 leading-relaxed font-medium">
-                本項目為{currentDetailPrescription?.expertName || '示範診所'}開立之處方指引，請配合日常作息確實落實執行。
-              </div>
-
-              <button
-                onClick={() => setActivePrescriptionDetailInfo(null)}
-                className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black cursor-pointer"
-              >
-                我知道了
-              </button>
-            </div>
-          </div>
-        )}
-
       </div>
     );
   }
@@ -1767,7 +1617,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   // MAIN VIEW: 綠色處方主儀表板
   // -------------------------------------------------------------
   return (
-    <div className="flex flex-col h-full bg-slate-100/60 font-sans antialiased text-slate-900 select-none overflow-hidden">
+      <div data-child-prescription-dispatched={String(isPrescriptionDispatched)} data-child-assigned-goals-count={assignedGoals.length} data-child-prescription-section-count={Object.keys(prescriptionData).length} data-child-assigned-prescription-count={assignedPrescriptions.length} data-dashboard-video-total={tasks.length} data-dashboard-video-completed={completedCount} data-green-progress-percentage={greenPrescriptionProgress.percentage} data-green-progress-completed={greenPrescriptionProgress.completed} data-green-progress-total={greenPrescriptionProgress.total} className="flex flex-col h-full bg-slate-100/60 font-sans antialiased text-slate-900 select-none overflow-hidden">
       
       {/* 1. Top Navigation Bar (matching IMG_9003) */}
       <header className="px-4 py-3 bg-white border-b border-slate-200 shrink-0 flex items-center justify-between min-h-[3.25rem]">
@@ -1792,7 +1642,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
           {/* Calendar block: Orange header + white day card */}
           <div className="w-14 h-15 rounded-xl bg-white border border-orange-200/90 shadow-xs overflow-hidden flex flex-col items-center shrink-0">
             <div className="w-full bg-[#f37021] text-white text-[11px] font-black py-0.5 text-center leading-none">
-              Aug
+              {selectedDate.toLocaleString('en-US', { month: 'short' })}
             </div>
             <div className="flex-1 flex items-center justify-center text-[#f37021] text-2xl font-black leading-none">
               {selectedDate.getDate()}
@@ -1824,12 +1674,12 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
           <div className="flex gap-2">
             <button
               onClick={() => {
-                setSelectedDate(new Date(2026, 7, 27));
+                onSelectedDateChange?.(new Date());
                 setShowDatePicker(false);
               }}
               className="px-3 py-1 bg-orange-600 text-white rounded-lg font-bold text-xs cursor-pointer"
             >
-              8/27 (今日)
+              今日
             </button>
             <button
               onClick={() => setShowDatePicker(false)}
@@ -1847,21 +1697,21 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
         {/* CARD 1: 執行狀況摘要（直接沿用既有處方與影片進度計算） */}
         <div className="bg-white rounded-2xl border border-slate-200 p-4.5 shadow-2xs space-y-3">
           <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold text-slate-500">整體執行進度</p><h2 className="text-base font-black text-slate-900">綠色處方執行摘要</h2></div><button type="button" onClick={() => setShowStatsDetailView(true)} className="flex items-center gap-1 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-black text-orange-700 hover:bg-orange-100">查看數據分析<ChevronRight className="w-4 h-4" /></button></div>
-          <div className="grid grid-cols-2 gap-2.5"><div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-3"><p className="text-[11px] font-bold text-slate-500">生活型態處方</p><p className="mt-1 text-lg font-black text-emerald-700">{completedPrescriptionItems} / {totalPrescriptionItems}</p><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-emerald-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${prescriptionProgressPercent}%` }} /></div></div><div className="rounded-xl border border-orange-100 bg-orange-50/70 p-3"><p className="text-[11px] font-bold text-slate-500">衛教影片（每週目標）</p><p className="mt-1 text-lg font-black text-orange-700">{completedCount} / {weeklyTarget}</p><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-orange-100"><div className="h-full rounded-full bg-orange-500" style={{ width: `${videoProgressRatio}%` }} /></div></div></div>
+          <div className={hasAssignedPrescription ? 'grid grid-cols-2 gap-2.5' : 'grid grid-cols-1 gap-2.5'}>{hasAssignedPrescription && <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-3"><p className="text-[11px] font-bold text-slate-500">生活型態處方</p><p className="mt-1 text-lg font-black text-emerald-700">{completedPrescriptionItems} / {totalPrescriptionItems}</p><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-emerald-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${prescriptionProgressPercent}%` }} /></div></div>}<div className="rounded-xl border border-orange-100 bg-orange-50/70 p-3"><p className="text-[11px] font-bold text-slate-500">衛教影片（每週目標）</p><p className="mt-1 text-lg font-black text-orange-700">{completedCount} / {weeklyTarget}</p><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-orange-100"><div className="h-full rounded-full bg-orange-500" style={{ width: `${videoProgressRatio}%` }} /></div></div></div>
         </div>
 
         {/* CARD 2: 專家指派生活型態處方 */}
         {!isDoctorAssigned ? (
-          isQuestionnaireSubmitted ? (
+          hasQuestionnaire ? (
             /* 狀況 A-1：問卷已填寫，等待專家診所從後台派送處方 */
-            <div className="bg-white rounded-2xl border border-amber-300 p-4.5 shadow-2xs space-y-2.5">
+            <div onClick={() => setShowUnassignedAlert(true)} className="bg-white rounded-2xl border border-amber-300 p-4.5 shadow-2xs space-y-2.5 cursor-pointer hover:border-orange-300 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-slate-600 font-extrabold text-xs">
                   <span className="text-amber-600">⏳</span>
                   <span>示範診所 指派</span>
                 </div>
                 <span className="text-[11px] font-black text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full">
-                  評估中
+                  待專家指派
                 </span>
               </div>
 
@@ -1870,7 +1720,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
                   專家指派生活型態處方
                 </div>
                 <div className="text-xs text-slate-500 font-medium">
-                  問卷已送達診所，待專家評估並開立處方
+                  問卷已完成，尚未收到專家指派的生活型態處方
                 </div>
               </div>
             </div>
@@ -1896,7 +1746,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
                   <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-orange-600 group-hover:translate-x-0.5 transition-all" />
                 </div>
                 <div className="text-xs text-slate-500 font-medium">
-                  尚未收到專家處方，點擊查看說明
+                尚未收到專家處方，點擊查看說明
                 </div>
               </div>
             </div>
@@ -1905,7 +1755,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
           /* 狀況 B：專家已指派處方（支援多個不同專家獨立顯示卡片） */
           <div className="space-y-3.5">
             {activeAssignedPrescriptions.map((presItem) => {
-              const cGoals = presItem.assignedGoals.length > 0 ? presItem.assignedGoals : ['運動習慣', '飲食習慣'];
+              const cGoals = presItem.assignedGoals;
               let cCompleted = 0;
               let cTotal = 0;
               const cBreakdown: { key: string; title: string; completed: number; total: number }[] = [];
@@ -2055,7 +1905,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
 
       </div>
 
-      {showQuestionnaireMenu && <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/55" onClick={() => setShowQuestionnaireMenu(false)}><div className="w-full max-w-md rounded-t-3xl bg-white px-5 pb-7 pt-4 shadow-2xl" onClick={(event) => event.stopPropagation()}><div className="relative mb-4 flex min-h-10 items-center justify-center"><button type="button" onClick={() => setShowQuestionnaireMenu(false)} className="absolute left-0 flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"><X className="h-6 w-6" /></button><h3 className="text-lg font-black text-slate-900">生活型態問卷</h3></div><div className="divide-y divide-slate-100"><button type="button" onClick={() => { setShowQuestionnaireMenu(false); handleGoToQuestionnaire('form'); }} className="flex w-full items-center justify-between py-5 text-left"><span className="flex items-center gap-3 text-base font-black text-slate-900"><FileText className="h-6 w-6 text-orange-600" />填寫生活型態問卷</span><ChevronRight className="h-5 w-5 text-slate-400" /></button><button type="button" onClick={() => { setShowQuestionnaireMenu(false); handleGoToQuestionnaire('list'); }} className="flex w-full items-center justify-between py-5 text-left"><span className="flex items-center gap-3 text-base font-black text-slate-900"><CheckCircle2 className="h-6 w-6 text-emerald-600" />已填寫清單</span><span className="flex items-center gap-2"><span className="text-xs font-bold text-slate-400">{questionnaireHistory.length}</span><ChevronRight className="h-5 w-5 text-slate-400" /></span></button></div></div></div>}
+      {showQuestionnaireMenu && <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/55" onClick={() => setShowQuestionnaireMenu(false)}><div className="w-full max-w-md rounded-t-3xl bg-white px-5 pb-7 pt-4 shadow-2xl" onClick={(event) => event.stopPropagation()}><div className="relative mb-4 flex min-h-10 items-center justify-center"><button type="button" onClick={() => setShowQuestionnaireMenu(false)} className="absolute left-0 flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"><X className="h-6 w-6" /></button><h3 className="text-lg font-black text-slate-900">生活型態問卷</h3></div><div className="divide-y divide-slate-100"><button type="button" onClick={() => { setShowQuestionnaireMenu(false); handleGoToQuestionnaire('form'); }} className="flex w-full items-center justify-between py-5 text-left"><span className="flex items-center gap-3 text-base font-black text-slate-900"><FileText className="h-6 w-6 text-orange-600" />填寫生活型態問卷</span><ChevronRight className="h-5 w-5 text-slate-400" /></button><button type="button" onClick={() => { setShowQuestionnaireMenu(false); handleGoToQuestionnaire('completed-list'); }} className="flex w-full items-center justify-between py-5 text-left"><span className="flex items-center gap-3 text-base font-black text-slate-900"><CheckCircle2 className="h-6 w-6 text-emerald-600" />已填寫清單</span><span className="flex items-center gap-2"><span className="text-xs font-bold text-slate-400">{questionnaireHistory.length}</span><ChevronRight className="h-5 w-5 text-slate-400" /></span></button></div></div></div>}
 
       {/* Modal: 尚未收到專家處方提醒彈窗 (重點 2) */}
       {showUnassignedAlert && (
@@ -2066,7 +1916,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
                 <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-black">
                   <AlertCircle className="w-5 h-5" />
                 </div>
-                <h3 className="text-base font-black text-slate-900">待專家指派處方</h3>
+                <h3 className="text-base font-black text-slate-900">{hasQuestionnaire ? '尚未收到專家處方' : '尚未填寫生活型態問卷'}</h3>
               </div>
               <button
                 onClick={() => setShowUnassignedAlert(false)}
@@ -2078,40 +1928,19 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
 
             <div className="space-y-3 text-xs text-slate-700 leading-relaxed font-medium">
               <p className="text-slate-800 font-bold text-[13px]">
-                您目前尚未收到專家的生活型態處方！您可以透過以下方式取得專屬處方：
+                {hasQuestionnaire
+                  ? '您已完成生活型態問卷，但目前尚未收到專家指派的生活型態處方。請聯繫您的專家協助開立處方。是否要尋找有提供綠色處方任務的專家？'
+                  : '您目前尚未完成生活型態問卷，醫師無法依據您的需求協助判送生活型態處方。請問是否要先填寫問卷？'}
               </p>
 
-              {/* Prompt Option 1: 問卷燈填寫生活型態問卷 */}
-              <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-3.5 space-y-1.5">
-                <div className="font-black text-amber-950 flex items-center gap-1.5 text-xs">
-                  <FileText className="w-4 h-4 text-amber-700 shrink-0" />
-                  <span>方式一：至「問卷燈」填寫生活型態問卷</span>
-                </div>
-                <p className="text-[11.5px] text-amber-900 leading-relaxed pl-5.5">
-                  前往問卷燈填寫生活型態評估問卷，完成後專家團隊將依據您的健康需求開立專屬綠色生活處方。
-                </p>
-              </div>
-
-              {/* Prompt Option 2: 專家頁找有在使用綠色處方燈照護的專家 */}
-              <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-2xl p-3.5 space-y-1.5">
-                <div className="font-black text-emerald-950 flex items-center gap-1.5 text-xs">
-                  <Stethoscope className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <span>方式二：至「專家頁」尋找綠色處方照護專家</span>
-                </div>
-                <p className="text-[11.5px] text-emerald-900 leading-relaxed pl-5.5">
-                  前往專家頁尋找並加入有在使用「綠色處方燈」照護的健康專家或醫療團隊，由專業團隊為您進行全方位生活型態照護。
-                </p>
-              </div>
+              {hasQuestionnaire && <div className="rounded-2xl border border-emerald-200 bg-emerald-50/90 p-3.5 text-xs font-bold text-emerald-900"><Stethoscope className="mr-1 inline h-4 w-4" />尋找提供綠色處方任務的專家</div>}
             </div>
 
             <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setShowUnassignedAlert(false)}
-                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-bold cursor-pointer transition-colors shadow-2xs"
-              >
-                我知道了
-              </button>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowUnassignedAlert(false)} className="flex-1 py-2.5 border border-slate-200 text-slate-700 rounded-2xl text-xs font-bold cursor-pointer">否</button>
+                <button type="button" onClick={() => hasQuestionnaire ? handleGoToExperts() : handleGoToQuestionnaire('form')} className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-2xl text-xs font-bold cursor-pointer">{hasQuestionnaire ? '尋找專家' : '填寫問卷'}</button>
+              </div>
             </div>
           </div>
         </div>

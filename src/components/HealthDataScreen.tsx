@@ -21,7 +21,7 @@ import {
   Sun,
   Sparkles
 } from 'lucide-react';
-import { ScreenId } from '../types';
+import { LifestyleQuestionnaireRecord, QuestionnaireOrigin, QuestionnaireView, ScreenId, VideoViewRecord } from '../types';
 import { BottomNavBar } from './BottomNavBar';
 import { HeartCareDashboard } from './heartCare/HeartCareDashboard';
 import { BloodPressureDetailScreen } from './heartCare/BloodPressureDetailScreen';
@@ -30,11 +30,12 @@ import { WeightDetailScreen } from './heartCare/WeightDetailScreen';
 import { RespiratoryRateDetailScreen } from './heartCare/RespiratoryRateDetailScreen';
 import { TemperatureDetailScreen } from './heartCare/TemperatureDetailScreen';
 import { HeartCareState, INITIAL_HEART_CARE_STATE } from './heartCare/heartCareData';
-import { GreenPrescriptionDashboard } from './greenPrescription/GreenPrescriptionDashboard';
+import { AssignedExpertPrescription } from './greenPrescription/GreenPrescriptionDashboard';
 import { GreenPrescriptionCoursesScreen } from './greenPrescription/GreenPrescriptionCoursesScreen';
 import { INITIAL_VIDEO_TASKS, VideoTask } from './greenPrescription/greenPrescriptionData';
 import { QuestionnaireScreen } from './QuestionnaireScreen';
-import { DoctorPrescriptionSection, getDoctorPrescriptionSection, INITIAL_DOCTOR_PRESCRIPTIONS } from './greenPrescription/doctorPrescriptionsData';
+import { DoctorPrescriptionSection } from './greenPrescription/doctorPrescriptionsData';
+import { calculateGreenPrescriptionProgress } from './greenPrescription/greenPrescriptionProgress';
 
 interface Props {
   onNavigate: (screen: ScreenId) => void;
@@ -47,8 +48,16 @@ interface Props {
   isPrescriptionDispatched?: boolean;
   onDispatchPrescription?: (goals?: string[]) => void;
   onSubmitLifestyleQuestionnaire?: (goals: string[]) => void;
+  questionnaireHistory?: LifestyleQuestionnaireRecord[];
+  isConsentCompleted?: boolean;
+  onSetConsentCompleted?: (completed: boolean) => void;
   prescriptionData?: Record<string, DoctorPrescriptionSection>;
+  assignedPrescriptions?: AssignedExpertPrescription[];
   onTogglePrescriptionItem?: (pillarKey: string, itemId: string) => void;
+  selectedDate?: Date;
+  onSelectedDateChange?: (date: Date) => void;
+  videoViewHistory?: VideoViewRecord[];
+  onVideoViewed?: (videoId: string) => void;
 }
 
 export const HealthDataScreen: React.FC<Props> = ({
@@ -62,19 +71,29 @@ export const HealthDataScreen: React.FC<Props> = ({
   isPrescriptionDispatched = false,
   onDispatchPrescription,
   onSubmitLifestyleQuestionnaire,
+  questionnaireHistory = [],
+  isConsentCompleted = false,
+  onSetConsentCompleted,
   prescriptionData,
+  assignedPrescriptions = [],
   onTogglePrescriptionItem,
+  selectedDate = new Date(),
+  onSelectedDateChange,
+  onVideoViewed,
 }) => {
   const [activeTab, setActiveTab] = useState<'my' | 'family'>('my');
-  const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 7, 18)); // 2026年8月18日
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pendingYear, setPendingYear] = useState(selectedDate.getFullYear());
+  const [pendingMonth, setPendingMonth] = useState(selectedDate.getMonth() + 1);
+  const [pendingDay, setPendingDay] = useState(selectedDate.getDate());
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
   // Questionnaire screen state
   const [showQuestionnaireScreen, setShowQuestionnaireScreen] = useState(false);
+  const [questionnaireView, setQuestionnaireView] = useState<QuestionnaireView>('list');
+  const [questionnaireOrigin, setQuestionnaireOrigin] = useState<QuestionnaireOrigin>('questionnaire-light');
 
   // Green Prescription screen states
-  const [showGreenPrescriptionDashboard, setShowGreenPrescriptionDashboard] = useState(false);
   const [showAssignedVideosScreen, setShowAssignedVideosScreen] = useState(false);
   const [internalVideoTasks, setInternalVideoTasks] = useState<VideoTask[]>(INITIAL_VIDEO_TASKS);
 
@@ -129,19 +148,35 @@ export const HealthDataScreen: React.FC<Props> = ({
     const weekDay = weekDays[date.getDay()];
     const month = date.getMonth() + 1;
     const day = date.getDate();
-    return `${weekDay} ${month}月${day}日`;
+    return `${weekDay} ${month}月${String(day).padStart(2, '0')}`;
   };
 
   const handlePrevDay = () => {
-    const newDate = new Date(currentDate);
+    const newDate = new Date(selectedDate);
     newDate.setDate(newDate.getDate() - 1);
-    setCurrentDate(newDate);
+    onSelectedDateChange?.(newDate);
   };
 
   const handleNextDay = () => {
-    const newDate = new Date(currentDate);
+    const newDate = new Date(selectedDate);
     newDate.setDate(newDate.getDate() + 1);
-    setCurrentDate(newDate);
+    onSelectedDateChange?.(newDate);
+  };
+
+  const openDatePicker = () => {
+    setPendingYear(selectedDate.getFullYear());
+    setPendingMonth(selectedDate.getMonth() + 1);
+    setPendingDay(selectedDate.getDate());
+    setShowDatePicker(true);
+  };
+
+  const clampPendingDay = (year: number, month: number, day: number) =>
+    Math.min(day, new Date(year, month, 0).getDate());
+
+  const confirmDate = () => {
+    const day = clampPendingDay(pendingYear, pendingMonth, pendingDay);
+    onSelectedDateChange?.(new Date(pendingYear, pendingMonth - 1, day));
+    setShowDatePicker(false);
   };
 
   if (showQuestionnaireScreen) {
@@ -149,11 +184,17 @@ export const HealthDataScreen: React.FC<Props> = ({
       <QuestionnaireScreen
         onBack={() => setShowQuestionnaireScreen(false)}
         onNavigate={onNavigate}
+        initialView={questionnaireView}
         isLifestyleSubmitted={isQuestionnaireSubmitted}
-        submittedGoals={assignedGoals}
+        submittedGoals={submittedGoals}
+        questionnaireHistory={questionnaireHistory}
+        isConsentCompleted={isConsentCompleted}
+        onSetConsentCompleted={onSetConsentCompleted}
         onSubmitLifestyleQuestionnaire={(goals) => {
-          if (onSubmitLifestyleQuestionnaire) {
-            onSubmitLifestyleQuestionnaire(goals);
+          onSubmitLifestyleQuestionnaire?.(goals);
+          if (questionnaireOrigin === 'green-prescription') {
+            setShowQuestionnaireScreen(false);
+            setQuestionnaireView('list');
           }
         }}
       />
@@ -166,30 +207,9 @@ export const HealthDataScreen: React.FC<Props> = ({
         onBack={() => setShowAssignedVideosScreen(false)}
         tasks={videoTasks}
         onToggleComplete={handleToggleVideoTask}
+        onVideoViewed={onVideoViewed}
         assignedGoals={assignedGoals}
         onNavigate={onNavigate}
-      />
-    );
-  }
-
-  if (showGreenPrescriptionDashboard) {
-    return (
-      <GreenPrescriptionDashboard
-        onBack={() => setShowGreenPrescriptionDashboard(false)}
-        onNavigateToTasks={() => setShowAssignedVideosScreen(true)}
-        tasks={videoTasks}
-        assignedGoals={assignedGoals}
-        submittedGoals={submittedGoals}
-        isQuestionnaireSubmitted={isQuestionnaireSubmitted}
-        isPrescriptionDispatched={isPrescriptionDispatched}
-        onDispatchPrescription={onDispatchPrescription}
-        onNavigateToQuestionnaire={() => {
-          setShowGreenPrescriptionDashboard(false);
-          setShowQuestionnaireScreen(true);
-        }}
-        onNavigate={onNavigate}
-        prescriptionData={prescriptionData}
-        onTogglePrescriptionItem={onTogglePrescriptionItem}
       />
     );
   }
@@ -324,34 +344,33 @@ export const HealthDataScreen: React.FC<Props> = ({
   return (
     <div className="flex flex-col h-full bg-white relative font-sans antialiased text-slate-900 overflow-hidden">
       {/* 1. Top Navigation Bar (AppBar) */}
-      <header className="pt-2 px-3 bg-white border-b border-slate-200 sticky top-0 z-20 shadow-xs">
+      <header className="px-4 py-3 bg-white border-b border-slate-200 sticky top-0 z-20 shadow-xs">
         <div className="flex items-center justify-between min-h-[3rem] relative">
           {/* Left: User Profile Avatar with status dot */}
           <button
             onClick={() => onNavigate('REAL-NAME')}
-            className="min-w-[48px] min-h-[48px] flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 active:scale-95 cursor-pointer"
+            className="flex w-10 min-h-[40px] items-center justify-start rounded-full hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 active:scale-95 cursor-pointer"
             title="查看個人檔案"
           >
             <div className="relative">
-              <div className="w-[36px] h-[36px] rounded-full bg-orange-100 border-2 border-orange-400 flex items-center justify-center overflow-hidden">
-                <span className="text-[1.125rem]">👤</span>
+              <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden">
+                <span className="text-base">👤</span>
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-[14px] h-[14px] bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
-                <span className="w-[6px] h-[6px] bg-white rounded-full"></span>
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white">
               </span>
             </div>
           </button>
 
           {/* Center Title: "健康數據" (Bold, 1.25rem) */}
-          <h1 className="text-[1.25rem] font-black text-slate-900 tracking-tight leading-snug">
+          <h1 className="absolute left-1/2 -translate-x-1/2 text-lg font-black text-slate-900 tracking-tight leading-snug">
             健康數據
           </h1>
 
           {/* Right: Overflow Menu Icon (⋮) - Disabled per user request */}
           <button
-            disabled
-            className="min-w-[48px] min-h-[48px] flex items-center justify-center text-slate-400 cursor-not-allowed opacity-50 rounded-full focus:outline-none"
-            aria-label="更多選單（不可點擊）"
+            type="button"
+            className="flex w-10 min-h-[40px] items-center justify-end text-slate-600 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500"
+            aria-label="更多選項"
           >
             <MoreVertical className="w-[1.5rem] h-[1.5rem]" />
           </button>
@@ -394,7 +413,7 @@ export const HealthDataScreen: React.FC<Props> = ({
         {activeTab === 'my' ? (
           <div>
             {/* 3. Date Selector Header: "< 週三 7月29日 ∨ >" */}
-            <div className="flex items-center justify-between px-3 py-2 text-slate-900 font-extrabold border-b border-slate-200 bg-slate-50/80">
+            <div className="flex items-center justify-between px-3 py-2 text-slate-900 font-extrabold border-b border-slate-200 bg-white">
               <button
                 onClick={handlePrevDay}
                 className="min-w-[48px] min-h-[48px] flex items-center justify-center hover:bg-slate-200/70 rounded-full cursor-pointer text-slate-800 transition-colors active:scale-95 focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -404,10 +423,11 @@ export const HealthDataScreen: React.FC<Props> = ({
               </button>
 
               <button
-                onClick={() => setShowDatePicker(!showDatePicker)}
+                onClick={openDatePicker}
                 className="min-h-[48px] px-4 flex items-center justify-center gap-1.5 hover:bg-slate-200/60 rounded-xl cursor-pointer transition-colors text-slate-900 font-black text-[1.05rem] focus:outline-none focus:ring-2 focus:ring-orange-500 active:scale-98"
               >
-                <span>&lt; {formatDateString(currentDate)} ∨ &gt;</span>
+                <span>{formatDateString(selectedDate)}</span>
+                <ChevronDown className="w-4 h-4 text-slate-500" aria-hidden="true" />
               </button>
 
               <button
@@ -419,26 +439,20 @@ export const HealthDataScreen: React.FC<Props> = ({
               </button>
             </div>
 
-            {/* Date picker dropdown sheet */}
+            {/* Date picker bottom sheet */}
             {showDatePicker && (
-              <div className="p-3 bg-orange-50 border-b border-orange-200 flex items-center justify-between text-[0.875rem] text-orange-950 font-bold">
-                <span>選擇日期</span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setCurrentDate(new Date(2026, 6, 29));
-                      setShowDatePicker(false);
-                    }}
-                    className="min-h-[40px] px-3 bg-orange-600 text-white rounded-lg font-extrabold cursor-pointer hover:bg-orange-700 active:scale-95"
-                  >
-                    今天 (7/29)
-                  </button>
-                  <button
-                    onClick={() => setShowDatePicker(false)}
-                    className="min-h-[40px] px-3 text-slate-700 hover:text-slate-900 font-bold cursor-pointer"
-                  >
-                    關閉
-                  </button>
+              <div className="absolute inset-0 z-40 flex items-end bg-slate-950/40" role="dialog" aria-label="選擇日期">
+                <div className="w-full rounded-t-3xl bg-white p-4 shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3 text-sm font-black text-orange-600">
+                    <button type="button" onClick={() => setShowDatePicker(false)} className="px-2 py-2">取消</button>
+                    <span>選擇日期</span>
+                    <button type="button" onClick={confirmDate} className="px-2 py-2">確認</button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 pt-3 text-center text-xs font-bold text-slate-500">
+                    <label>年<select value={pendingYear} onChange={(e) => { const year = Number(e.target.value); setPendingYear(year); setPendingDay((day) => clampPendingDay(year, pendingMonth, day)); }} className="mt-2 block w-full rounded-lg bg-slate-100 p-3 text-center text-sm font-black text-slate-900">{Array.from({ length: 5 }, (_, i) => pendingYear - 2 + i).map((year) => <option key={year} value={year}>{year}年</option>)}</select></label>
+                    <label>月<select value={pendingMonth} onChange={(e) => { const month = Number(e.target.value); setPendingMonth(month); setPendingDay((day) => clampPendingDay(pendingYear, month, day)); }} className="mt-2 block w-full rounded-lg bg-slate-100 p-3 text-center text-sm font-black text-slate-900">{Array.from({ length: 12 }, (_, i) => i + 1).map((month) => <option key={month} value={month}>{month}月</option>)}</select></label>
+                    <label>日<select value={pendingDay} onChange={(e) => setPendingDay(Number(e.target.value))} className="mt-2 block w-full rounded-lg bg-slate-100 p-3 text-center text-sm font-black text-slate-900">{Array.from({ length: new Date(pendingYear, pendingMonth, 0).getDate() }, (_, i) => i + 1).map((day) => <option key={day} value={day}>{day}日</option>)}</select></label>
+                  </div>
                 </div>
               </div>
             )}
@@ -467,48 +481,30 @@ export const HealthDataScreen: React.FC<Props> = ({
 
               {/* 2. 綠色處方燈 (以 % 與進度條呈現，點擊開啟儀表板) */}
               {(() => {
-                const dataToUse = prescriptionData || INITIAL_DOCTOR_PRESCRIPTIONS;
-                const activeKeys = assignedGoals.length > 0
-                  ? assignedGoals
-                  : (submittedGoals.length > 0 ? submittedGoals : ['運動習慣', '飲食習慣']);
-
-                let totalPrescriptionItems = 0;
-                let completedPrescriptionItems = 0;
-
-                activeKeys.forEach((key) => {
-                  const sec = getDoctorPrescriptionSection(key, dataToUse);
-                  if (sec) {
-                    totalPrescriptionItems += sec.items.length;
-                    completedPrescriptionItems += sec.items.filter((it) => it.completed).length;
-                  }
+                const greenPrescriptionProgress = calculateGreenPrescriptionProgress({
+                  isPrescriptionDispatched,
+                  doctorPrescriptions: prescriptionData ?? {},
+                  videoTasks,
                 });
-
-                const completedVideoCount = videoTasks.filter((t) => t.completed).length;
-                const totalVideoCount = videoTasks.length;
-
-                const totalItems = totalPrescriptionItems + totalVideoCount;
-                const completedItems = completedPrescriptionItems + completedVideoCount;
-
-                const greenPrescriptionPercent =
-                  totalItems > 0
-                    ? Math.round((completedItems / totalItems) * 100)
-                    : totalVideoCount > 0
-                    ? Math.round((completedVideoCount / totalVideoCount) * 100)
-                    : 0;
 
                 return (
                   <div
-                    onClick={() => setShowGreenPrescriptionDashboard(true)}
+                    onClick={() => onNavigate('GREEN-PRESCRIPTION')}
+                    data-green-progress-percentage={greenPrescriptionProgress.percentage}
+                    data-green-progress-completed={greenPrescriptionProgress.completed}
+                    data-green-progress-total={greenPrescriptionProgress.total}
+                    data-green-prescription-total={greenPrescriptionProgress.prescriptionTotal}
+                    data-green-video-total={greenPrescriptionProgress.videoTotal}
                     className="flex items-center justify-between px-4 py-3 min-h-[3.75rem] hover:bg-orange-50/50 transition-colors cursor-pointer group"
                   >
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <span className="font-black text-slate-900 text-[1rem] group-hover:text-orange-600 transition-colors">
-                        綠色處方燈 {greenPrescriptionPercent}%
+                        綠色處方燈 {greenPrescriptionProgress.percentage}%
                       </span>
                       <div className="w-[6.5rem] sm:w-[9rem] bg-slate-200 h-[0.5rem] rounded-full overflow-hidden border border-slate-300">
                         <div
                           className="bg-orange-500 h-full transition-all duration-300 shadow-xs"
-                          style={{ width: `${greenPrescriptionPercent}%` }}
+                          style={{ width: `${greenPrescriptionProgress.percentage}%` }}
                         />
                       </div>
                     </div>
@@ -690,7 +686,11 @@ export const HealthDataScreen: React.FC<Props> = ({
 
               {/* 11. 問卷燈 */}
               <div
-                onClick={() => setShowQuestionnaireScreen(true)}
+                onClick={() => {
+                  setQuestionnaireOrigin('questionnaire-light');
+                  setQuestionnaireView('list');
+                  setShowQuestionnaireScreen(true);
+                }}
                 className="flex items-center justify-between px-4 py-3 min-h-[3.75rem] hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 <span className="font-black text-slate-900 text-[1rem]">問卷燈</span>
@@ -710,6 +710,8 @@ export const HealthDataScreen: React.FC<Props> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      setQuestionnaireOrigin('questionnaire-light');
+                      setQuestionnaireView('list');
                       setShowQuestionnaireScreen(true);
                     }}
                     className="min-w-[48px] min-h-[48px] flex items-center justify-center text-slate-600 hover:text-orange-600 hover:bg-orange-50 rounded-full transition-colors cursor-pointer active:scale-95 focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -1115,4 +1117,3 @@ export const HealthDataScreen: React.FC<Props> = ({
     </div>
   );
 };
-

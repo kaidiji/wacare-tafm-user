@@ -30,6 +30,7 @@ interface Props {
   onToggleComplete: (id: string) => void;
   assignedGoals?: string[];
   onNavigate?: (screen: ScreenId) => void;
+  onVideoViewed?: (videoId: string) => void;
 }
 
 export const GreenPrescriptionCoursesScreen: React.FC<Props> = ({
@@ -38,6 +39,7 @@ export const GreenPrescriptionCoursesScreen: React.FC<Props> = ({
   onToggleComplete,
   assignedGoals = [],
   onNavigate,
+  onVideoViewed,
 }) => {
   // Tabs: LIVE 課程 / 影片課程 / 關於我 / 討論區 (Matching IMG_8642)
   const [activeTab, setActiveTab] = useState<'live' | 'videos' | 'about' | 'discussion'>('videos');
@@ -172,6 +174,7 @@ export const GreenPrescriptionCoursesScreen: React.FC<Props> = ({
         onFollow={() => setIsFollowed(true)}
         onBack={() => setActiveVideoId(null)}
         onToggleComplete={onToggleComplete}
+        onVideoViewed={onVideoViewed}
         onNavigate={onNavigate}
       />
     );

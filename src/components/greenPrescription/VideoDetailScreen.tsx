@@ -30,6 +30,7 @@ interface Props {
   onBack: () => void;
   onToggleComplete: (id: string) => void;
   onNavigate?: (screen: ScreenId) => void;
+  onVideoViewed?: (videoId: string) => void;
 }
 
 export const VideoDetailScreen: React.FC<Props> = ({
@@ -39,6 +40,7 @@ export const VideoDetailScreen: React.FC<Props> = ({
   onBack,
   onToggleComplete,
   onNavigate,
+  onVideoViewed,
 }) => {
   const [followedState, setFollowedState] = useState(isFollowed);
   const [isPlaying, setIsPlaying] = useState(isFollowed);
@@ -59,6 +61,15 @@ export const VideoDetailScreen: React.FC<Props> = ({
   const [showCompletedToast, setShowCompletedToast] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [showControls, setShowControls] = useState(true);
+  const viewRecordedRef = useRef(false);
+
+  useEffect(() => {
+    if (viewRecordedRef.current) return;
+    viewRecordedRef.current = true;
+    onVideoViewed?.(task.id);
+    // Record one view when the user enters this video detail screen.
+    // The task id dependency prevents parent re-renders from duplicating the event.
+  }, [task.id]);
 
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -747,4 +758,3 @@ export const VideoDetailScreen: React.FC<Props> = ({
     </div>
   );
 };
-

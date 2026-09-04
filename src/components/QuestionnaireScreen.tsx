@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, Plus, ChevronRight, ChevronDown } from 'lucide-react';
-import { LifestyleQuestionnaireRecord, ScreenId } from '../types';
+import { LifestyleQuestionnaireRecord, QuestionnaireView, ScreenId } from '../types';
 import { LifestyleQuestionnaireFormScreen } from './LifestyleQuestionnaireFormScreen';
 import { QuestionnaireResultScreen } from './QuestionnaireResultScreen';
 
@@ -26,7 +26,7 @@ interface Props {
   isLifestyleSubmitted?: boolean;
   submittedGoals?: string[];
   onSubmitLifestyleQuestionnaire?: (goals: string[]) => void;
-  initialView?: 'list' | 'form' | 'result';
+  initialView?: QuestionnaireView;
   onDirectSubmitComplete?: () => void;
   isConsentCompleted?: boolean;
   onSetConsentCompleted?: (completed: boolean) => void;
@@ -53,6 +53,25 @@ export const QuestionnaireScreen: React.FC<Props> = ({
   const [showResultScreen, setShowResultScreen] = useState(initialView === 'result');
   const [selectedRecord, setSelectedRecord] = useState<QuestionnaireRecord | null>(null);
   const [collapsedMonths, setCollapsedMonths] = useState<string[]>([]);
+  const isCompletedListView = initialView === 'completed-list';
+  const previousHistoryLength = useRef(questionnaireHistory.length);
+  const previousSubmitted = useRef(isLifestyleSubmitted);
+
+  // history 是 App 的唯一資料來源；新紀錄進來時只同步畫面 UI，
+  // 不在此元件複製或重建問卷資料。
+  useEffect(() => {
+    const hasNewSubmission =
+      (!previousSubmitted.current && isLifestyleSubmitted) ||
+      questionnaireHistory.length > previousHistoryLength.current;
+    if (hasNewSubmission) {
+      setShowLifestyleForm(false);
+      setShowResultScreen(false);
+      setActiveTab('completed');
+      setSelectedRecord(null);
+    }
+    previousHistoryLength.current = questionnaireHistory.length;
+    previousSubmitted.current = isLifestyleSubmitted;
+  }, [questionnaireHistory.length, isLifestyleSubmitted]);
 
   // Exact questionnaires list matching IMG_8998 (With only '生活型態問卷' clickable)
   const allSelectableQuestionnaires = [
@@ -100,7 +119,7 @@ export const QuestionnaireScreen: React.FC<Props> = ({
       ]
     : [];
 
-  const currentList = activeTab === 'completed' ? completedList : pendingList;
+  const currentList = isCompletedListView || activeTab === 'completed' ? completedList : pendingList;
   const monthGroups = currentList.reduce<Array<{ key: string; label: string; items: QuestionnaireRecord[] }>>(
     (groups, item) => {
       const dateMatch = item.completedDate?.match(/^(\d{4})\/(\d{1,2})/);
@@ -181,21 +200,21 @@ export const QuestionnaireScreen: React.FC<Props> = ({
 
           {/* Title */}
           <h1 className="text-lg font-black text-slate-900 tracking-tight">
-            問卷
+            {isCompletedListView ? '已填寫清單' : '問卷'}
           </h1>
 
           {/* Plus button (Orange circle with white plus) */}
-          <button
+          {isCompletedListView ? <div className="w-8" /> : <button
             onClick={() => setShowSelectModal(true)}
             className="w-8 h-8 flex items-center justify-center rounded-full bg-[#f37021] text-white hover:bg-orange-600 transition-transform active:scale-95 cursor-pointer shadow-xs"
             title="新增問卷"
           >
             <Plus className="w-5 h-5 stroke-[2.5]" />
-          </button>
+          </button>}
         </div>
 
         {/* 2. Tabs Bar: 已完成 / 未完成 */}
-        <div className="flex items-center text-center mt-1 border-b border-slate-200/90">
+        {!isCompletedListView && <div className="flex items-center text-center mt-1 border-b border-slate-200/90">
           <button
             onClick={() => setActiveTab('completed')}
             className={`flex-1 py-3 text-[0.9375rem] font-black cursor-pointer transition-colors relative ${
@@ -223,7 +242,7 @@ export const QuestionnaireScreen: React.FC<Props> = ({
               <span className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#f37021]" />
             )}
           </button>
-        </div>
+        </div>}
       </header>
 
       {/* 3. Main Content Area */}
@@ -302,10 +321,10 @@ export const QuestionnaireScreen: React.FC<Props> = ({
 
             {/* Empty text exactly matching reference screenshot */}
             <p className="text-base font-black text-slate-900 tracking-tight mb-2">
-              {activeTab === 'completed' ? '還沒有填寫過問卷！' : '目前沒有未完成的問卷！'}
+              {isCompletedListView ? '尚無已填寫的生活型態問卷' : activeTab === 'completed' ? '還沒有填寫過問卷！' : '目前沒有未完成的問卷！'}
             </p>
             
-            <div className="flex items-center justify-center gap-1.5 text-sm font-bold text-slate-900">
+            {!isCompletedListView && <div className="flex items-center justify-center gap-1.5 text-sm font-bold text-slate-900">
               <span>點擊右上方</span>
               <button
                 onClick={() => setShowSelectModal(true)}
@@ -314,7 +333,7 @@ export const QuestionnaireScreen: React.FC<Props> = ({
                 <Plus className="w-3.5 h-3.5 stroke-[3]" />
               </button>
               <span>開始吧！</span>
-            </div>
+            </div>}
           </div>
         ) : (
           /* List of Questionnaires matching IMG_9001.PNG */
@@ -346,7 +365,6 @@ export const QuestionnaireScreen: React.FC<Props> = ({
                       <span className="shrink-0 text-sm font-black text-slate-500">{item.dateLabel?.split(' ')[0].replace(/^\d{4}\//, '').replace('/', '月')}日</span>
                       <span className="truncate font-black text-slate-700">{item.title}</span>
                     </div>
-                    <div className="mt-1 flex items-center gap-2 text-[11px]"><span className="rounded-full bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700">已完成</span><span className="truncate text-slate-600">已選擇：{item.summary}</span></div>
                   </div>
 
                   <div className="text-slate-300 group-hover:text-slate-500 transition-colors">

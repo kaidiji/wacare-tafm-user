@@ -352,7 +352,7 @@ export const WaCareMessages: React.FC<Props> = ({
   const currentMessages = selectedChat ? messagesMap[selectedChat] || [] : [];
 
   return (
-    <div className="h-full bg-white flex flex-col justify-between overflow-hidden relative">
+    <div data-active-expert-id={activeChannel?.id || selectedChat || ''} data-active-conversation-id={activeChannel?.id || selectedChat || ''} className="h-full bg-white flex flex-col justify-between overflow-hidden relative">
       {/* 1. CHAT MESSAGE CENTER LIST VIEW */}
       {selectedChat === null && (
         <div className="flex-1 flex flex-col min-h-0 bg-white">
