@@ -495,6 +495,13 @@ export const HealthDataScreen: React.FC<Props> = ({
                     data-green-progress-total={greenPrescriptionProgress.total}
                     data-green-prescription-total={greenPrescriptionProgress.prescriptionTotal}
                     data-green-video-total={greenPrescriptionProgress.videoTotal}
+                    data-green-active-task-total={greenPrescriptionProgress.total}
+                    data-green-active-task-completed={greenPrescriptionProgress.completed}
+                    data-green-progress-percent={greenPrescriptionProgress.percentage}
+                    data-green-active-video-total={greenPrescriptionProgress.videoTotal}
+                    data-green-active-video-completed={greenPrescriptionProgress.videoCompleted}
+                    data-green-active-lifestyle-total={greenPrescriptionProgress.prescriptionTotal}
+                    data-green-active-lifestyle-completed={greenPrescriptionProgress.prescriptionCompleted}
                     className="flex items-center justify-between px-4 py-3 min-h-[3.75rem] hover:bg-orange-50/50 transition-colors cursor-pointer group"
                   >
                     <div className="flex items-center gap-2.5 flex-wrap">

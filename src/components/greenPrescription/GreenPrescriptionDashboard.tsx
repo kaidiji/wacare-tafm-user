@@ -25,14 +25,14 @@ import {
   MoreVertical,
   Film,
 } from 'lucide-react';
-import { VideoTask } from './greenPrescriptionData';
+import { DEFAULT_WEEKLY_VIDEO_TARGET, VideoTask } from './greenPrescriptionData';
 import { LifestyleQuestionnaireRecord, QuestionnaireView, ScreenId, VideoViewRecord } from '../../types';
 import {
   DoctorPrescriptionSection,
   getDoctorPrescriptionSection,
   normalizePillarKey,
 } from './doctorPrescriptionsData';
-import { calculateGreenPrescriptionProgress } from './greenPrescriptionProgress';
+import { calculateGreenPrescriptionProgress, calculateProgressPercent } from './greenPrescriptionProgress';
 
 // Custom Pie Chart Icon matching IMG_9026.PNG
 const DataPieGlyph: React.FC<{ className?: string }> = ({ className = 'w-5 h-5 text-[#f37021]' }) => (
@@ -217,7 +217,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
     const sec = getDoctorPrescriptionSection(key, prescriptionData);
     const total = sec ? sec.items.length : 0;
     const completed = sec ? sec.items.filter((it) => it.completed).length : 0;
-    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const percent = calculateProgressPercent(completed, total);
     return {
       key,
       title: sec?.categoryTitle || key,
@@ -233,46 +233,36 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
     detailCompletedItems += cat.completed;
   });
 
-  const detailProgressPercent =
-    detailTotalItems > 0
-      ? Math.round((detailCompletedItems / detailTotalItems) * 100)
-      : 0;
+  const detailProgressPercent = calculateProgressPercent(detailCompletedItems, detailTotalItems);
 
   const assignedSections = Object.values(prescriptionData) as DoctorPrescriptionSection[];
   const assignedPrescriptionItems = Array.from(new Map(
     assignedSections.flatMap((section) => section.items).map((item) => [item.id, item])
   ).values());
-  const prescriptionCompletionRate = assignedPrescriptionItems.length > 0
-    ? Math.min(100, Math.max(0, Math.round((assignedPrescriptionItems.filter((item) => item.completed).length / assignedPrescriptionItems.length) * 100)))
-    : 0;
+  const prescriptionCompletionRate = calculateProgressPercent(
+    assignedPrescriptionItems.filter((item) => item.completed).length,
+    assignedPrescriptionItems.length
+  );
   const categoryStats = assignedSections.map((section) => ({
     id: section.id,
     title: section.categoryTitle,
     total: section.items.length,
     completed: section.items.filter((item) => item.completed).length,
-    percentage: section.items.length > 0 ? Math.round((section.items.filter((item) => item.completed).length / section.items.length) * 100) : 0,
+    percentage: calculateProgressPercent(section.items.filter((item) => item.completed).length, section.items.length),
   }));
 
   // Global counts fallback
   let totalPrescriptionItems = greenPrescriptionProgress.prescriptionTotal;
   let completedPrescriptionItems = greenPrescriptionProgress.prescriptionCompleted;
   let prescriptionProgressPercent = greenPrescriptionProgress.prescriptionTotal > 0
-    ? Math.round((greenPrescriptionProgress.prescriptionCompleted / greenPrescriptionProgress.prescriptionTotal) * 100)
+    ? calculateProgressPercent(greenPrescriptionProgress.prescriptionCompleted, greenPrescriptionProgress.prescriptionTotal)
     : 0;
 
-  // Weekly target & completed count for videos
-  const [weeklyTarget] = useState<number>(() => {
-    try {
-      const saved = window.localStorage.getItem('wacare_weekly_video_target');
-      return saved ? parseInt(saved, 10) || 3 : 3;
-    } catch {
-      return 3;
-    }
-  });
+  // 影片任務總數直接取目前 App 傳入的任務集合，避免固定目標與外層進度不一致。
+  const weeklyTarget = DEFAULT_WEEKLY_VIDEO_TARGET;
 
-  const completedCount = new Set(tasks.filter((t) => t.completed).map((t) => t.id)).size;
-  const videoProgressRatio =
-    weeklyTarget > 0 ? Math.min(100, Math.round((completedCount / weeklyTarget) * 100)) : 0;
+  const completedCount = Math.min(weeklyTarget, new Set(tasks.filter((t) => t.completed).map((t) => t.id)).size);
+  const videoProgressRatio = calculateProgressPercent(completedCount, weeklyTarget);
 
   const getWeekDayName = (d: Date) => {
     const names = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
@@ -1794,7 +1784,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
                   cBreakdown.push({ key: sec.id, title: sec.categoryTitle, completed: cc, total: tt });
                 }
               });
-              const cPercent = cTotal > 0 ? Math.round((cCompleted / cTotal) * 100) : 0;
+              const cPercent = calculateProgressPercent(cCompleted, cTotal);
 
               return (
                 <div

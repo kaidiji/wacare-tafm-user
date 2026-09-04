@@ -5,7 +5,7 @@ import { aimeeAvatar, blissAvatar } from '../constants/avatars';
 import { CreateDiscussionModal } from './heartCare/CreateDiscussionModal';
 
 interface Props {
-  expertId: 'aimee' | 'bliss' | 'family-medicine' | 'quanyin';
+  expertId: string;
   onNavigate: (screen: ScreenId) => void;
   activityState: Activity722State;
   onAuthorizeSuccess: (expertId: 'aimee' | 'bliss') => void;
@@ -24,7 +24,7 @@ export const ExpertProfile: React.FC<Props> = ({
   const [showCreatePostModal, setShowCreatePostModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'about' | 'discussion'>('discussion');
 
-  const expertData = {
+  const expertDataById = {
     aimee: {
       name: 'Aimee(艾咪) 血壓衛教助理',
       serviceTitle: '健康服務',
@@ -57,7 +57,41 @@ export const ExpertProfile: React.FC<Props> = ({
     quanyin: {
       name: '全銀運動', serviceTitle: '綠色處方運動服務', followers: '26,235 位追蹤者', posts: '27,900 篇發問數', avatarImg: blissAvatar, color: 'bg-indigo-100 text-indigo-700', bannerBg: 'from-indigo-400/20 via-purple-400/10 to-indigo-200/20', discussionItems: [],
     },
-  }[expertId];
+  } as const;
+
+  const simulatedExpertNames: Record<string, string> = {
+    'greenfield-family': '青禾家庭醫學診所',
+    'forest-wellness': '森沐健康診所',
+    'sunny-lifestyle': '晴日生活醫學診所',
+    'health-sequence': '康序家庭診所',
+    'balance-wellness': '樂衡健康診所',
+    'good-cycle': '好循環生活診所',
+    'orange-heart': '橙心家庭醫學診所',
+    'green-sprout': '綠芽健康診所',
+    'steady-step': '安步生活診所',
+    'evergreen-family': '長青家庭診所',
+    'morning-light': '晨光家醫診所',
+    'warm-care': '和煦健康診所',
+    'first-heart': '初心家庭診所',
+    'sun-bath': '沐陽生活診所',
+    'health-bridge': '康橋健康診所',
+    'happy-health': '樂康家庭診所',
+    'sunny-river': '晴川家醫診所',
+    'caring-heart': '仁心生活診所',
+    'peaceful-harmony': '安禾健康診所',
+    'joyful-life': '悅活家庭診所',
+  };
+
+  const expertData = expertDataById[expertId as keyof typeof expertDataById] ?? {
+    name: simulatedExpertNames[expertId] || '專家診所',
+    serviceTitle: '醫療院所',
+    followers: '— 位追蹤者',
+    posts: '— 篇發問數',
+    avatarImg: aimeeAvatar,
+    color: 'bg-emerald-100 text-emerald-700',
+    bannerBg: 'from-emerald-400/20 via-teal-400/10 to-emerald-200/20',
+    discussionItems: [],
+  };
 
   const handleConfirmSaveAuthorization = () => {
     setShowConfirmModal(false);
@@ -231,7 +265,7 @@ export const ExpertProfile: React.FC<Props> = ({
           <div className="p-4 space-y-3 text-xs text-slate-600 leading-relaxed bg-white my-2 rounded-2xl shadow-2xs border border-slate-100 mx-4">
             <h3 className="font-bold text-slate-900 text-sm mb-1">關於專家團隊</h3>
             <p>
-              WaCare 血壓衛教團隊致力於為高血壓與心血管風險民眾提供零距離的個人化健康衛教指導。協助使用者記錄、解讀血壓趨勢並獲得生活型態改善建議。
+              血壓衛教團隊致力於為高血壓與心血管風險民眾提供零距離的個人化健康衛教指導。協助使用者記錄、解讀血壓趨勢並獲得生活型態改善建議。
             </p>
           </div>
         )}
@@ -263,7 +297,7 @@ export const ExpertProfile: React.FC<Props> = ({
             <div className="p-5 overflow-y-auto space-y-4 flex-1">
               <div className="text-center space-y-1">
                 <div className="w-16 h-16 rounded-full bg-orange-50 flex items-center justify-center text-3xl mx-auto border border-orange-100">
-                  {expertData.avatarEmoji}
+                  {'avatarEmoji' in expertData ? expertData.avatarEmoji : '🏥'}
                 </div>
                 <h3 className="font-black text-slate-900 text-base">{expertData.name}</h3>
                 <span className="text-xs font-bold text-red-500 block">成功關注專家！</span>

@@ -27,6 +27,8 @@ export interface VideoTask {
   avatarEmoji?: string;
 }
 
+export const DEFAULT_WEEKLY_VIDEO_TARGET = 3;
+
 export interface GreenPrescriptionWeekStats {
   weekLabel: string;
   startDate: string;

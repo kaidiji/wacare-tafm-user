@@ -16,7 +16,6 @@ import { GreenPrescriptionCoursesScreen } from './components/greenPrescription/G
 import {
   VideoTask,
   ALL_CORE_VIDEO_TASKS,
-  getTasksForCategories,
 } from './components/greenPrescription/greenPrescriptionData';
 import {
   DoctorPrescriptionSection,
@@ -30,7 +29,7 @@ import { QuestionnaireScreen } from './components/QuestionnaireScreen';
 export function App() {
   // 預設登入狀態並直接進入 Home 主頁 ('SCR-03')
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('SCR-03');
-  const [selectedExpertId, setSelectedExpertId] = useState<'aimee' | 'bliss' | 'family-medicine' | 'quanyin'>('family-medicine');
+  const [selectedExpertId, setSelectedExpertId] = useState<string>('family-medicine');
   const [showBPModal, setShowBPModal] = useState(false);
   const [activeChatChannel, setActiveChatChannel] = useState<string | null>(null);
   const [questionnaireInitialView, setQuestionnaireInitialView] = useState<QuestionnaireView>('list');
@@ -210,8 +209,7 @@ export function App() {
     if (targetGoals.length === 0) return;
 
     const assignedPrescriptionSnapshot = buildAssignedPrescription(targetGoals);
-    const assignedVideoTasks = getTasksForCategories(targetGoals);
-    if (Object.keys(assignedPrescriptionSnapshot).length === 0 || assignedVideoTasks.length === 0) return;
+    if (Object.keys(assignedPrescriptionSnapshot).length === 0) return;
 
     setQuestionnaireData((current) => ({
       ...current,
@@ -220,28 +218,11 @@ export function App() {
     setIsQuestionnaireSubmitted(true);
     setAssignedGoals(targetGoals);
     setDoctorPrescriptions(assignedPrescriptionSnapshot);
-    setVideoTasks((currentTasks) => {
-      const existingById = new Map<string, VideoTask>(
-        currentTasks.map((task): [string, VideoTask] => [task.id, task])
-      );
-
-      return assignedVideoTasks.map((task) => {
-        const existing = existingById.get(task.id);
-        return existing
-          ? { ...task, ...existing, completed: existing.completed }
-          : { ...task, completed: false };
-      });
-    });
     setIsPrescriptionDispatched(true);
 
-    const nextVideoCompleted = new Set(
-      assignedVideoTasks
-        .filter((task) => videoTasks.some((current) => current.id === task.id && current.completed))
-        .map((task) => task.id)
-    ).size;
     console.debug('[video-debug] after dispatch', {
-      taskCount: assignedVideoTasks.length,
-      completed: nextVideoCompleted,
+      taskCount: videoTasks.length,
+      completed: videoCompleted,
       viewCount: videoViewHistory.length,
     });
 
@@ -524,6 +505,7 @@ export function App() {
               assignedGoals={assignedGoals}
               submittedGoals={submittedGoals}
               isQuestionnaireSubmitted={isQuestionnaireSubmitted}
+              isPrescriptionDispatched={isPrescriptionDispatched}
               onSubmitLifestyleQuestionnaire={handleSubmitQuestionnaire}
               questionnaireHistory={questionnaireHistory}
               isConsentCompleted={isConsentCompleted}
