@@ -1191,7 +1191,6 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
                 {points.length === 0 ? <p className="py-6 text-center text-xs text-slate-500">尚無資料</p> : <svg viewBox="0 0 340 180" className="w-full" role="img" aria-label="影片觀看次數趨勢圖">
                   {Array.from({ length: Math.floor(yMax / (yMax <= 5 ? 1 : 5)) + 1 }, (_, i) => i * (yMax <= 5 ? 1 : 5)).map((tick) => { const y = 145 - (tick / yMax) * 120; return <g key={tick}><line x1="34" y1={y} x2="330" y2={y} stroke="#e2e8f0" strokeDasharray="3 3" /><text x="26" y={y + 3} textAnchor="end" fontSize="10" fill="#64748b">{tick}</text></g>; })}
                   {points.map(([date, views], index) => { const x = 48 + (index * 270) / Math.max(1, points.length - 1); const height = (views / yMax) * 120; return <g key={date}><rect x={x - 10} y={145 - height} width="20" height={height} rx="4" fill="#60a5fa" /><text x={x} y={136 - height} textAnchor="middle" fontSize="10" fontWeight="700" fill="#1d4ed8">{views}</text><text x={x} y="164" textAnchor="middle" fontSize="9" fill="#64748b">{date.slice(5).replace('-', '/')}</text></g>; })}
-                  <text x="26" y="149" textAnchor="end" fontSize="10" fill="#64748b">0</text>
                 </svg>}
               </div>
             );
