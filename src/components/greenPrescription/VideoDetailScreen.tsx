@@ -69,6 +69,17 @@ export const VideoDetailScreen: React.FC<Props> = ({
     onVideoViewed?.(task.id);
   };
 
+  // The demo player can start automatically for an already-followed expert.
+  // Treat that transition as the playback start, while the ref prevents
+  // repeated play events in the same detail-screen session from duplicating it.
+  const initialPlayingRef = useRef(isPlaying);
+  useEffect(() => {
+    if (isPlaying && !initialPlayingRef.current) {
+      recordPlaybackStart();
+    }
+    initialPlayingRef.current = isPlaying;
+  }, [isPlaying, task.id]);
+
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
