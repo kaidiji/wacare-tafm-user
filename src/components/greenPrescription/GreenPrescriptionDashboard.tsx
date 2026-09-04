@@ -1188,10 +1188,34 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
             return (
               <div className="min-w-full snap-start bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3 overflow-x-auto">
                 <div className="flex items-center justify-between"><div><h3 className="text-sm font-black text-slate-900">影片觀看數趨勢</h3><p className="text-[11px] font-medium text-slate-500">依實際播放次數統計，同一影片重複觀看會重複計算</p></div><span className="text-[11px] font-extrabold text-blue-700">觀看次數</span></div>
-                {points.length === 0 ? <p className="py-6 text-center text-xs text-slate-500">尚無資料</p> : <svg viewBox="0 0 340 180" className="w-full" role="img" aria-label="影片觀看次數趨勢圖">
-                  {Array.from({ length: Math.floor(yMax / (yMax <= 5 ? 1 : 5)) + 1 }, (_, i) => i * (yMax <= 5 ? 1 : 5)).map((tick) => { const y = 145 - (tick / yMax) * 120; return <g key={tick}><line x1="34" y1={y} x2="330" y2={y} stroke="#e2e8f0" strokeDasharray="3 3" /><text x="26" y={y + 3} textAnchor="end" fontSize="10" fill="#64748b">{tick}</text></g>; })}
-                  {points.map(([date, views], index) => { const x = 48 + (index * 270) / Math.max(1, points.length - 1); const height = (views / yMax) * 120; return <g key={date}><rect x={x - 10} y={145 - height} width="20" height={height} rx="4" fill="#60a5fa" /><text x={x} y={136 - height} textAnchor="middle" fontSize="10" fontWeight="700" fill="#1d4ed8">{views}</text><text x={x} y="164" textAnchor="middle" fontSize="9" fill="#64748b">{date.slice(5).replace('-', '/')}</text></g>; })}
-                </svg>}
+                {points.length === 0 ? <p className="py-6 text-center text-xs text-slate-500">尚無資料</p> : (() => {
+                  const width = 340;
+                  const height = 180;
+                  const paddingLeft = 34;
+                  const paddingRight = 10;
+                  const paddingTop = 20;
+                  const paddingBottom = 30;
+                  const plotWidth = width - paddingLeft - paddingRight;
+                  const plotHeight = height - paddingTop - paddingBottom;
+                  const chartPoints = points.map(([date, views], index) => ({
+                    date,
+                    views,
+                    x: paddingLeft + (points.length > 1 ? (index * plotWidth) / (points.length - 1) : plotWidth / 2),
+                    y: height - paddingBottom - (views / yMax) * plotHeight,
+                  }));
+                  const pathD = chartPoints.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
+                  const tickStep = yMax <= 5 ? 1 : 5;
+                  const ticks = Array.from({ length: Math.floor(yMax / tickStep) + 1 }, (_, index) => index * tickStep);
+
+                  return <svg viewBox={`0 0 ${width} ${height}`} className="w-full" role="img" aria-label="影片觀看次數趨勢圖">
+                    {ticks.map((tick) => {
+                      const y = height - paddingBottom - (tick / yMax) * plotHeight;
+                      return <g key={tick}><line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#e2e8f0" strokeDasharray="3 3" /><text x={paddingLeft - 8} y={y + 3} textAnchor="end" fontSize="10" fill="#64748b">{tick}</text></g>;
+                    })}
+                    <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                    {chartPoints.map((point) => <g key={point.date}><circle cx={point.x} cy={point.y} r="6" fill="#ffffff" stroke="#3b82f6" strokeWidth="2.5" /><circle cx={point.x} cy={point.y} r="2.5" fill="#1d4ed8" /><text x={point.x} y={point.y - 10} textAnchor="middle" fontSize="10" fontWeight="700" fill="#1d4ed8">{point.views}</text><text x={point.x} y={height - 10} textAnchor="middle" fontSize="9" fill="#64748b">{point.date.slice(5).replace('-', '/')}</text></g>)}
+                  </svg>;
+                })()}
               </div>
             );
           })()}

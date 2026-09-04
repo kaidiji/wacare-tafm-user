@@ -197,6 +197,11 @@ export function App() {
   // 模擬專家診所從後台派送處方與訊息 (使用者明確要求：按此按鍵才派送訊息跟處方)
   const handleDispatchPrescription = () => {
     if (questionnaireData.history.length === 0 || isPrescriptionDispatched) return;
+    console.debug('[video-debug] before dispatch', {
+      taskCount: videoTasks.length,
+      completed: videoCompleted,
+      viewCount: videoViewHistory.length,
+    });
     const latestQuestionnaire = [...questionnaireData.history].sort((a, b) =>
       b.completedAt.localeCompare(a.completedAt)
     )[0];
@@ -204,15 +209,41 @@ export function App() {
     const targetGoals: string[] = Array.from(new Set<string>(sourceGoals.map(normalizePillarKey)));
     if (targetGoals.length === 0) return;
 
+    const assignedPrescriptionSnapshot = buildAssignedPrescription(targetGoals);
+    const assignedVideoTasks = getTasksForCategories(targetGoals);
+    if (Object.keys(assignedPrescriptionSnapshot).length === 0 || assignedVideoTasks.length === 0) return;
+
     setQuestionnaireData((current) => ({
       ...current,
       goals: [...targetGoals],
     }));
     setIsQuestionnaireSubmitted(true);
-    setIsPrescriptionDispatched(true);
     setAssignedGoals(targetGoals);
-    setDoctorPrescriptions(buildAssignedPrescription(targetGoals));
-    setVideoTasks(getTasksForCategories(targetGoals));
+    setDoctorPrescriptions(assignedPrescriptionSnapshot);
+    setVideoTasks((currentTasks) => {
+      const existingById = new Map<string, VideoTask>(
+        currentTasks.map((task): [string, VideoTask] => [task.id, task])
+      );
+
+      return assignedVideoTasks.map((task) => {
+        const existing = existingById.get(task.id);
+        return existing
+          ? { ...task, ...existing, completed: existing.completed }
+          : { ...task, completed: false };
+      });
+    });
+    setIsPrescriptionDispatched(true);
+
+    const nextVideoCompleted = new Set(
+      assignedVideoTasks
+        .filter((task) => videoTasks.some((current) => current.id === task.id && current.completed))
+        .map((task) => task.id)
+    ).size;
+    console.debug('[video-debug] after dispatch', {
+      taskCount: assignedVideoTasks.length,
+      completed: nextVideoCompleted,
+      viewCount: videoViewHistory.length,
+    });
 
     const goalsString = targetGoals.join('、');
     const shortUrl = `https://wacare.app/green-rx?focus=${encodeURIComponent(targetGoals[0] || 'health')}`;
