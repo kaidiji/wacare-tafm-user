@@ -1188,10 +1188,11 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
             return (
               <div className="min-w-full snap-start bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3 overflow-x-auto">
                 <div className="flex items-center justify-between"><div><h3 className="text-sm font-black text-slate-900">影片觀看數趨勢</h3><p className="text-[11px] font-medium text-slate-500">依實際播放次數統計，同一影片重複觀看會重複計算</p></div><span className="text-[11px] font-extrabold text-blue-700">觀看次數</span></div>
-                {points.length === 0 ? <p className="py-6 text-center text-xs text-slate-500">尚無資料</p> : <div className="min-w-[320px]">
-                  <div className="flex items-end gap-2 h-36 px-2">{points.map(([date, views]) => <div key={date} className="flex h-full flex-1 flex-col items-center justify-end gap-1"><span className="text-[10px] font-bold text-blue-700">{views}</span><div className="w-full max-w-8 rounded-t bg-blue-400" style={{ height: `${Math.max(4, (views / yMax) * 100)}%` }} /><span className="text-[9px] text-slate-500">{date.slice(5).replace('-', '/')}</span></div>)}</div>
-                  <div className="mt-1 flex justify-between text-[9px] text-slate-400"><span>0</span><span>{yMax}</span></div>
-                </div>}
+                {points.length === 0 ? <p className="py-6 text-center text-xs text-slate-500">尚無資料</p> : <svg viewBox="0 0 340 180" className="w-full" role="img" aria-label="影片觀看次數趨勢圖">
+                  {Array.from({ length: Math.floor(yMax / (yMax <= 5 ? 1 : 5)) + 1 }, (_, i) => i * (yMax <= 5 ? 1 : 5)).map((tick) => { const y = 145 - (tick / yMax) * 120; return <g key={tick}><line x1="34" y1={y} x2="330" y2={y} stroke="#e2e8f0" strokeDasharray="3 3" /><text x="26" y={y + 3} textAnchor="end" fontSize="10" fill="#64748b">{tick}</text></g>; })}
+                  {points.map(([date, views], index) => { const x = 48 + (index * 270) / Math.max(1, points.length - 1); const height = (views / yMax) * 120; return <g key={date}><rect x={x - 10} y={145 - height} width="20" height={height} rx="4" fill="#60a5fa" /><text x={x} y={136 - height} textAnchor="middle" fontSize="10" fontWeight="700" fill="#1d4ed8">{views}</text><text x={x} y="164" textAnchor="middle" fontSize="9" fill="#64748b">{date.slice(5).replace('-', '/')}</text></g>; })}
+                  <text x="26" y="149" textAnchor="end" fontSize="10" fill="#64748b">0</text>
+                </svg>}
               </div>
             );
           })()}
