@@ -63,13 +63,11 @@ export const VideoDetailScreen: React.FC<Props> = ({
   const [showControls, setShowControls] = useState(true);
   const viewRecordedRef = useRef(false);
 
-  useEffect(() => {
+  const recordPlaybackStart = () => {
     if (viewRecordedRef.current) return;
     viewRecordedRef.current = true;
     onVideoViewed?.(task.id);
-    // Record one view when the user enters this video detail screen.
-    // The task id dependency prevents parent re-renders from duplicating the event.
-  }, [task.id]);
+  };
 
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -86,6 +84,7 @@ export const VideoDetailScreen: React.FC<Props> = ({
       onFollow();
     }
     setIsPlaying(true);
+    recordPlaybackStart();
     setShowFollowToast(true);
     setTimeout(() => setShowFollowToast(false), 3000);
   };
@@ -307,6 +306,9 @@ export const VideoDetailScreen: React.FC<Props> = ({
                       e.stopPropagation();
                       const nextPlaying = !isPlaying;
                       setIsPlaying(nextPlaying);
+                      if (nextPlaying) {
+                        recordPlaybackStart();
+                      }
                       if (nextPlaying && !task.completed) {
                         onToggleComplete(task.id);
                       }
