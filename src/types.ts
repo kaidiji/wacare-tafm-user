@@ -15,6 +15,9 @@ export type ScreenId =
   | 'GREEN-PRESCRIPTION-EVENT'
   | 'QUESTIONNAIRE';
 
+export type QuestionnaireView = 'list' | 'form' | 'result' | 'completed-list';
+export type QuestionnaireOrigin = 'questionnaire-light' | 'green-prescription';
+
 export interface Expert {
   id: string;
   name: string;
@@ -33,6 +36,12 @@ export interface LifestyleQuestionnaireRecord {
   status: '已完成';
   result: string;
   advice: string;
+}
+
+export interface VideoViewRecord {
+  id: string;
+  videoId: string;
+  viewedAt: string;
 }
 
 export interface UserProfile {

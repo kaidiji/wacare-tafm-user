@@ -27,6 +27,8 @@ export interface VideoTask {
   avatarEmoji?: string;
 }
 
+export const DEFAULT_WEEKLY_VIDEO_TARGET = 3;
+
 export interface GreenPrescriptionWeekStats {
   weekLabel: string;
   startDate: string;
@@ -468,7 +470,7 @@ export const ALL_CATEGORY_VIDEO_TASKS: Record<string, VideoTask[]> = {
   '增加人際互動': ALL_CORE_VIDEO_TASKS.filter((t) => t.category === '增加人際互動'),
 };
 
-// 根據勾選的類別取得對應指派影片；若未指定類別，則回傳全部核心課程影片
+// 根據勾選的類別取得對應指派影片；未指定類別時才回傳全部核心課程影片
 export function getTasksForCategories(categories?: string[]): VideoTask[] {
   if (!categories || categories.length === 0) {
     return [...ALL_CORE_VIDEO_TASKS];
@@ -488,7 +490,7 @@ export function getTasksForCategories(categories?: string[]): VideoTask[] {
     }
   });
 
-  return assigned.length > 0 ? assigned : [...ALL_CORE_VIDEO_TASKS];
+  return assigned;
 }
 
 // 預設一開始就加載完整的核心課程影片清單，無需先填問卷

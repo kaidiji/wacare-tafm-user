@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { DataAuthorizationScreen } from './components/DataAuthorizationScreen';
-import { ScreenId, UserProfile, Activity722State, ChatMessage, LifestyleQuestionnaireRecord } from './types';
+import { ScreenId, UserProfile, Activity722State, ChatMessage, LifestyleQuestionnaireRecord, QuestionnaireView, VideoViewRecord } from './types';
 import { Scr00Landing } from './components/Scr00Landing';
 import { Scr01Onboarding } from './components/Scr01Onboarding';
 import { Scr02Nickname } from './components/Scr02Nickname';
@@ -16,13 +16,12 @@ import { GreenPrescriptionCoursesScreen } from './components/greenPrescription/G
 import {
   VideoTask,
   ALL_CORE_VIDEO_TASKS,
-  getTasksForCategories,
 } from './components/greenPrescription/greenPrescriptionData';
 import {
-  INITIAL_DOCTOR_PRESCRIPTIONS,
   DoctorPrescriptionSection,
   normalizePillarKey,
   getDoctorPrescriptionSection,
+  buildAssignedPrescription,
 } from './components/greenPrescription/doctorPrescriptionsData';
 
 import { QuestionnaireScreen } from './components/QuestionnaireScreen';
@@ -30,12 +29,13 @@ import { QuestionnaireScreen } from './components/QuestionnaireScreen';
 export function App() {
   // 預設登入狀態並直接進入 Home 主頁 ('SCR-03')
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('SCR-03');
-  const [selectedExpertId, setSelectedExpertId] = useState<'aimee' | 'bliss' | 'family-medicine' | 'quanyin'>('family-medicine');
+  const [selectedExpertId, setSelectedExpertId] = useState<string>('family-medicine');
   const [showBPModal, setShowBPModal] = useState(false);
   const [activeChatChannel, setActiveChatChannel] = useState<string | null>(null);
-  const [questionnaireInitialView, setQuestionnaireInitialView] = useState<'list' | 'form' | 'result'>('list');
+  const [questionnaireInitialView, setQuestionnaireInitialView] = useState<QuestionnaireView>('list');
   const [questionnaireReturnScreen, setQuestionnaireReturnScreen] = useState<ScreenId>('HEALTH-DATA');
   const [greenPrescriptionExpertFilter, setGreenPrescriptionExpertFilter] = useState(false);
+  const [selectedHealthDate, setSelectedHealthDate] = useState<Date>(() => new Date());
 
   // User Profile State (預設已有登入帳號資料)
   const [userProfile, setUserProfile] = useState<UserProfile>({
@@ -67,11 +67,16 @@ export function App() {
   const submittedGoals = questionnaireData.goals;
   const [assignedGoals, setAssignedGoals] = useState<string[]>([]);
   const [videoTasks, setVideoTasks] = useState<VideoTask[]>(ALL_CORE_VIDEO_TASKS);
+  const [videoViewHistory, setVideoViewHistory] = useState<VideoViewRecord[]>([]);
+  const videoCompleted = new Set(videoTasks.filter((task) => task.completed).map((task) => task.id)).size;
+  const handleVideoViewed = (videoId: string) => {
+    setVideoViewHistory((prev) => [...prev, { id: `${videoId}-${Date.now()}`, videoId, viewedAt: new Date().toISOString() }]);
+  };
 
   // 生活型態處方行動打卡狀態 (初始預設)
   const [doctorPrescriptions, setDoctorPrescriptions] = useState<
     Record<string, DoctorPrescriptionSection>
-  >(INITIAL_DOCTOR_PRESCRIPTIONS);
+  >({});
 
   const handleTogglePrescriptionItem = (pillarKey: string, itemId: string) => {
     setDoctorPrescriptions((prev) => {
@@ -85,7 +90,9 @@ export function App() {
       const updatedSection: DoctorPrescriptionSection = {
         ...section,
         items: section.items.map((it) =>
-          it.id === itemId ? { ...it, completed: !it.completed } : it
+          it.id === itemId
+            ? { ...it, completed: !it.completed, completedAt: !it.completed ? new Date().toISOString() : undefined }
+            : it
         ),
       };
 
@@ -145,6 +152,7 @@ export function App() {
     setIsQuestionnaireSubmitted(true);
     setIsPrescriptionDispatched(false);
     setAssignedGoals([]); // 尚未經專家派送，處方尚未啟用
+    setDoctorPrescriptions({});
     const submittedAt = new Date();
     const padDatePart = (value: number) => String(value).padStart(2, '0');
     const completedAt = `${submittedAt.getFullYear()}/${padDatePart(submittedAt.getMonth() + 1)}/${padDatePart(submittedAt.getDate())} ${padDatePart(submittedAt.getHours())}:${padDatePart(submittedAt.getMinutes())}`;
@@ -186,22 +194,37 @@ export function App() {
   const questionnaireHistory = questionnaireData.history;
 
   // 模擬專家診所從後台派送處方與訊息 (使用者明確要求：按此按鍵才派送訊息跟處方)
-  const handleDispatchPrescription = (customGoals?: string[]) => {
-    const targetGoals =
-      customGoals && customGoals.length > 0
-        ? customGoals
-        : submittedGoals.length > 0
-        ? submittedGoals
-        : ['運動習慣', '飲食習慣'];
+  const handleDispatchPrescription = () => {
+    if (questionnaireData.history.length === 0 || isPrescriptionDispatched) return;
+    console.debug('[video-debug] before dispatch', {
+      taskCount: videoTasks.length,
+      completed: videoCompleted,
+      viewCount: videoViewHistory.length,
+    });
+    const latestQuestionnaire = [...questionnaireData.history].sort((a, b) =>
+      b.completedAt.localeCompare(a.completedAt)
+    )[0];
+    const sourceGoals: string[] = latestQuestionnaire?.goals ?? [];
+    const targetGoals: string[] = Array.from(new Set<string>(sourceGoals.map(normalizePillarKey)));
+    if (targetGoals.length === 0) return;
+
+    const assignedPrescriptionSnapshot = buildAssignedPrescription(targetGoals);
+    if (Object.keys(assignedPrescriptionSnapshot).length === 0) return;
 
     setQuestionnaireData((current) => ({
       ...current,
       goals: [...targetGoals],
     }));
     setIsQuestionnaireSubmitted(true);
-    setIsPrescriptionDispatched(true);
     setAssignedGoals(targetGoals);
-    setVideoTasks(getTasksForCategories(targetGoals));
+    setDoctorPrescriptions(assignedPrescriptionSnapshot);
+    setIsPrescriptionDispatched(true);
+
+    console.debug('[video-debug] after dispatch', {
+      taskCount: videoTasks.length,
+      completed: videoCompleted,
+      viewCount: videoViewHistory.length,
+    });
 
     const goalsString = targetGoals.join('、');
     const shortUrl = `https://wacare.app/green-rx?focus=${encodeURIComponent(targetGoals[0] || 'health')}`;
@@ -246,35 +269,24 @@ export function App() {
     records: [],
   });
 
-  const [isSecondExpertAssigned, setIsSecondExpertAssigned] = useState(false);
-
   const assignedPrescriptions: AssignedExpertPrescription[] = useMemo(() => {
-    if (!isPrescriptionDispatched && assignedGoals.length === 0) return [];
+    if (!isPrescriptionDispatched || assignedGoals.length === 0 || Object.keys(doctorPrescriptions).length === 0) return [];
 
-    const baseGoals = assignedGoals.length > 0 ? assignedGoals : (submittedGoals.length > 0 ? submittedGoals : ['運動習慣', '飲食習慣']);
+    const baseGoals = [...assignedGoals];
 
     const list: AssignedExpertPrescription[] = [
       {
-        id: 'p-demo',
+        id: 'prescription-family-medicine',
         expertId: 'family-medicine',
         expertName: '示範診所',
         expertEmoji: '👨‍⚕️',
         assignedGoals: baseGoals,
+        prescriptionData: doctorPrescriptions,
       },
     ];
 
-    if (isSecondExpertAssigned) {
-      list.push({
-        id: 'p-quanyin',
-        expertId: 'quanyin',
-        expertName: '全銀運動',
-        expertEmoji: '🏃‍♂️',
-        assignedGoals: ['身體活動', '睡眠品質'],
-      });
-    }
-
     return list;
-  }, [isPrescriptionDispatched, assignedGoals, submittedGoals, isSecondExpertAssigned]);
+  }, [isPrescriptionDispatched, assignedGoals, doctorPrescriptions]);
 
   const handleAuthorizeSuccess = (expId: string) => {
     setActivityState((prev) => ({
@@ -292,7 +304,7 @@ export function App() {
   };
 
   return (
-    <div data-app-questionnaire-history-count={questionnaireHistory.length} className="flex h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden bg-slate-950 font-sans antialiased text-slate-800 select-none">
+    <div data-app-questionnaire-history-count={questionnaireHistory.length} data-app-prescription-dispatched={String(isPrescriptionDispatched)} data-app-assigned-goals-count={assignedGoals.length} data-app-prescription-section-count={Object.keys(doctorPrescriptions).length} data-app-assigned-prescription-count={assignedPrescriptions.length} data-app-video-total={videoTasks.length} data-app-video-completed={videoCompleted} data-app-video-view-count={videoViewHistory.length} className="flex h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden bg-slate-950 font-sans antialiased text-slate-800 select-none">
       {/* 🏥 外部：專家診所後台管理與模擬派送控制列 (Outside the mobile frame) */}
       <header className="z-40 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-900 px-3 py-2.5 text-white shadow-md sm:gap-3 sm:px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
@@ -337,22 +349,21 @@ export function App() {
           <button
             type="button"
             onClick={() => handleDispatchPrescription()}
-            disabled={isPrescriptionDispatched}
-            className={`px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer ${
+            disabled={isPrescriptionDispatched || questionnaireData.history.length === 0}
+            aria-disabled={isPrescriptionDispatched || questionnaireData.history.length === 0}
+            className={`px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all shadow-md ${
               isPrescriptionDispatched
                 ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                : isQuestionnaireSubmitted
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white ring-2 ring-emerald-400/50 shadow-emerald-900/30 animate-pulse'
-                : 'bg-emerald-700 hover:bg-emerald-600 text-white'
+                : questionnaireData.history.length > 0
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white ring-2 ring-emerald-400/50 shadow-emerald-900/30 animate-pulse cursor-pointer active:scale-95'
+                : 'bg-slate-700/50 text-slate-400 cursor-not-allowed opacity-60'
             }`}
-            title="從專家診所後台將處方任務與訊息派送給使用者"
+            title={questionnaireData.history.length === 0 ? '請先完成生活型態問卷' : '從專家診所後台將處方任務與訊息派送給使用者'}
           >
             <span className="text-sm">👨‍⚕️</span>
             <span>
               {isPrescriptionDispatched
                 ? '處方已派送完成'
-                : isQuestionnaireSubmitted
-                ? '立即從後台派送處方'
                 : '模擬後台派送處方'}
             </span>
           </button>
@@ -418,6 +429,11 @@ export function App() {
               followedExperts={followedExperts}
               onToggleFollow={handleToggleFollow}
               greenPrescriptionOnly={greenPrescriptionExpertFilter}
+              onOpenExpertMessage={(expertId) => {
+                setSelectedExpertId(expertId as any);
+                setActiveChatChannel(expertId === 'wa-bunny' ? 'wabunny' : expertId);
+                setCurrentScreen('MESSAGES');
+              }}
             />
           )}
 
@@ -480,22 +496,33 @@ export function App() {
                   setQuestionnaireInitialView('list');
                   setQuestionnaireReturnScreen('HEALTH-DATA');
                 }
+                if (screen === 'SCR-04') setGreenPrescriptionExpertFilter(false);
                 setCurrentScreen(screen);
               }}
               nickname={userProfile.nickname}
               videoTasks={videoTasks}
               onToggleVideoTask={handleToggleVideoTask}
               assignedGoals={assignedGoals}
+              submittedGoals={submittedGoals}
               isQuestionnaireSubmitted={isQuestionnaireSubmitted}
+              isPrescriptionDispatched={isPrescriptionDispatched}
               onSubmitLifestyleQuestionnaire={handleSubmitQuestionnaire}
+              questionnaireHistory={questionnaireHistory}
+              isConsentCompleted={isConsentCompleted}
+              onSetConsentCompleted={setIsConsentCompleted}
               prescriptionData={doctorPrescriptions}
+              assignedPrescriptions={assignedPrescriptions}
               onTogglePrescriptionItem={handleTogglePrescriptionItem}
+              selectedDate={selectedHealthDate}
+              onSelectedDateChange={setSelectedHealthDate}
+              videoViewHistory={videoViewHistory}
+              onVideoViewed={handleVideoViewed}
             />
           )}
 
           {currentScreen === 'QUESTIONNAIRE' && (
             <QuestionnaireScreen
-              key={`${questionnaireReturnScreen}-${questionnaireInitialView}-${questionnaireInitialView === 'list' ? questionnaireHistory.length : 0}`}
+              key={`${questionnaireReturnScreen}-${questionnaireInitialView}`}
               onBack={() => setCurrentScreen(questionnaireReturnScreen)}
               onNavigate={setCurrentScreen}
               isLifestyleSubmitted={isQuestionnaireSubmitted}
@@ -533,6 +560,10 @@ export function App() {
               onTogglePrescriptionItem={handleTogglePrescriptionItem}
               assignedPrescriptions={assignedPrescriptions}
               questionnaireHistory={questionnaireHistory}
+              selectedDate={selectedHealthDate}
+              onSelectedDateChange={setSelectedHealthDate}
+              videoViewHistory={videoViewHistory}
+              onVideoViewed={handleVideoViewed}
             />
           )}
 
@@ -543,6 +574,7 @@ export function App() {
               onToggleComplete={handleToggleVideoTask}
               assignedGoals={assignedGoals}
               onNavigate={setCurrentScreen}
+              onVideoViewed={handleVideoViewed}
             />
           )}
 

@@ -30,6 +30,7 @@ interface Props {
   onBack: () => void;
   onToggleComplete: (id: string) => void;
   onNavigate?: (screen: ScreenId) => void;
+  onVideoViewed?: (videoId: string) => void;
 }
 
 export const VideoDetailScreen: React.FC<Props> = ({
@@ -39,6 +40,7 @@ export const VideoDetailScreen: React.FC<Props> = ({
   onBack,
   onToggleComplete,
   onNavigate,
+  onVideoViewed,
 }) => {
   const [followedState, setFollowedState] = useState(isFollowed);
   const [isPlaying, setIsPlaying] = useState(isFollowed);
@@ -59,6 +61,24 @@ export const VideoDetailScreen: React.FC<Props> = ({
   const [showCompletedToast, setShowCompletedToast] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [showControls, setShowControls] = useState(true);
+  const viewRecordedRef = useRef(false);
+
+  const recordPlaybackStart = () => {
+    if (viewRecordedRef.current) return;
+    viewRecordedRef.current = true;
+    onVideoViewed?.(task.id);
+  };
+
+  // The demo player can start automatically for an already-followed expert.
+  // Treat that transition as the playback start, while the ref prevents
+  // repeated play events in the same detail-screen session from duplicating it.
+  const initialPlayingRef = useRef(isPlaying);
+  useEffect(() => {
+    if (isPlaying && !initialPlayingRef.current) {
+      recordPlaybackStart();
+    }
+    initialPlayingRef.current = isPlaying;
+  }, [isPlaying, task.id]);
 
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -75,6 +95,7 @@ export const VideoDetailScreen: React.FC<Props> = ({
       onFollow();
     }
     setIsPlaying(true);
+    recordPlaybackStart();
     setShowFollowToast(true);
     setTimeout(() => setShowFollowToast(false), 3000);
   };
@@ -296,6 +317,9 @@ export const VideoDetailScreen: React.FC<Props> = ({
                       e.stopPropagation();
                       const nextPlaying = !isPlaying;
                       setIsPlaying(nextPlaying);
+                      if (nextPlaying) {
+                        recordPlaybackStart();
+                      }
                       if (nextPlaying && !task.completed) {
                         onToggleComplete(task.id);
                       }
@@ -747,4 +771,3 @@ export const VideoDetailScreen: React.FC<Props> = ({
     </div>
   );
 };
-
