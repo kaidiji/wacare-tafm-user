@@ -166,7 +166,7 @@ export const QuestionnaireScreen: React.FC<Props> = ({
   }
 
   return (
-    <div data-questionnaire-history-count={questionnaireHistory.length} className="flex flex-col h-full bg-white relative font-sans antialiased text-slate-900 overflow-hidden">
+    <div className="flex flex-col h-full bg-white relative font-sans antialiased text-slate-900 overflow-hidden">
       {/* 1. Header Bar (Matching design exactly: Close 'X', Center '問卷', Right orange '+') */}
       <header className="pt-2 px-4 bg-white border-b border-slate-100 sticky top-0 z-20 shadow-2xs">
         <div className="flex items-center justify-between min-h-[3.25rem]">

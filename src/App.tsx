@@ -292,16 +292,16 @@ export function App() {
   };
 
   return (
-    <div data-app-questionnaire-history-count={questionnaireHistory.length} className="flex flex-col h-screen w-screen bg-slate-950 overflow-hidden font-sans antialiased text-slate-800 select-none">
+    <div data-app-questionnaire-history-count={questionnaireHistory.length} className="flex h-[100dvh] min-h-0 w-full max-w-full flex-col overflow-hidden bg-slate-950 font-sans antialiased text-slate-800 select-none">
       {/* 🏥 外部：專家診所後台管理與模擬派送控制列 (Outside the mobile frame) */}
-      <header className="bg-slate-900 border-b border-slate-800 px-4 py-2.5 shrink-0 z-40 text-white flex flex-wrap items-center justify-between gap-3 shadow-md">
-        <div className="flex items-center gap-3 min-w-0">
+      <header className="z-40 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-900 px-3 py-2.5 text-white shadow-md sm:gap-3 sm:px-4">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-base shadow-sm font-black shrink-0">
             🌿
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-black text-sm tracking-tight text-white">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="text-xs font-black tracking-tight text-white sm:text-sm">
                 示範診所 · 後台管理系統
               </span>
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
@@ -332,7 +332,7 @@ export function App() {
         </div>
 
         {/* 外部後台操作按鍵 */}
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
           {/* 派送處方按鈕 */}
           <button
             type="button"
@@ -360,8 +360,8 @@ export function App() {
       </header>
 
       {/* Main Mobile App Frame Stage */}
-      <div className="flex-1 flex items-center justify-center p-0 sm:p-4 overflow-hidden">
-        <div className="w-full h-full max-w-md bg-white sm:rounded-3xl sm:shadow-2xl overflow-hidden flex flex-col relative sm:border sm:border-slate-800/80">
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-0 sm:p-4">
+        <div className="relative flex h-full min-h-0 w-full max-w-md flex-col overflow-hidden bg-white sm:rounded-3xl sm:border sm:border-slate-800/80 sm:shadow-2xl">
           
           {/* SCREEN ROUTING */}
 
