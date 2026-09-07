@@ -76,9 +76,51 @@ export function App() {
   });
   const submittedGoals = questionnaireData.goals;
   const [assignedGoals, setAssignedGoals] = useState<string[]>([]);
-  const [videoTasks, setVideoTasks] = useState<VideoTask[]>(ALL_CORE_VIDEO_TASKS);
+  // A cycle exposes at most five selectable videos; the weekly progress target
+  // remains the shared constant (3) and is derived separately downstream.
+  const [videoTasks, setVideoTasks] = useState<VideoTask[]>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('wacare_green_prescription_video_cycle') || 'null');
+      if (stored?.cycleId && Array.isArray(stored.tasks) && stored.tasks.length <= 5) return stored.tasks;
+    } catch { /* fall back to the deterministic catalogue */ }
+    const goals = questionnaireData.goals;
+    const categoryWords: Record<string, string[]> = {
+      飲食習慣: ['飲食'], diet: ['飲食'],
+      運動習慣: ['運動', '身體活動'], physical_activity: ['運動', '身體活動'],
+      睡眠品質: ['睡眠'], sleep: ['睡眠'],
+      壓力管理: ['壓力'], stress_management: ['壓力'],
+      增加人際互動: ['人際', '社交', '社會'], positive_social_connection: ['人際', '社交', '社會'],
+      '戒菸／戒酒／戒檳榔': ['戒菸', '戒酒', '檳榔', '危害'], harmful_substance_avoidance: ['戒菸', '戒酒', '檳榔', '危害'],
+    };
+    if (goals.length === 0) {
+      return [...ALL_CORE_VIDEO_TASKS].sort(() => Math.random() - 0.5).slice(0, 5).map((task) => ({ ...task }));
+    }
+    const selected = new Set<string>();
+    const matched = goals.flatMap((goal) => {
+      const words = categoryWords[goal] ?? [goal];
+      return ALL_CORE_VIDEO_TASKS.filter((task) => words.some((word) => task.category.includes(word)));
+    });
+    // Round-robin the matched goals so one category cannot consume all five slots.
+    const queues = goals.map((goal) => matched.filter((task) => (categoryWords[goal] ?? [goal]).some((word) => task.category.includes(word))));
+    for (let index = 0; selected.size < 5 && queues.length > 0; index += 1) {
+      const queue = queues[index % queues.length];
+      const candidate = queue.shift();
+      if (candidate && !selected.has(candidate.id)) selected.add(candidate.id);
+      if (queues.every((items) => items.length === 0)) break;
+    }
+    const fallback = ALL_CORE_VIDEO_TASKS.filter((task) => !selected.has(task.id));
+    fallback.forEach((task) => { if (selected.size < 5) selected.add(task.id); });
+    return ALL_CORE_VIDEO_TASKS.filter((task) => selected.has(task.id)).map((task) => ({ ...task }));
+  });
   const [videoViewHistory, setVideoViewHistory] = useState<VideoViewRecord[]>([]);
   const videoCompleted = new Set(videoTasks.filter((task) => task.completed).map((task) => task.id)).size;
+  useEffect(() => {
+    localStorage.setItem('wacare_green_prescription_video_cycle', JSON.stringify({
+      cycleId: '2026-09-07',
+      selectionMode: 'random',
+      tasks: videoTasks,
+    }));
+  }, [videoTasks]);
   const handleVideoViewed = (videoId: string) => {
     setVideoViewHistory((prev) => [...prev, { id: `${videoId}-${Date.now()}`, videoId, viewedAt: new Date().toISOString() }]);
   };
