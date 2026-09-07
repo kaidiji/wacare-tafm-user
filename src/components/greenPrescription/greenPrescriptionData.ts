@@ -493,8 +493,23 @@ export function getTasksForCategories(categories?: string[]): VideoTask[] {
   return assigned;
 }
 
+// Prototype course catalogue additions: five stable, browsable courses per pillar.
+const DEMO_COURSE_VIDEOS: VideoTask[] = [
+  ['diet', '外食族如何吃得更均衡', '飲食習慣'], ['diet', '每日蔬菜水果怎麼吃才足夠', '飲食習慣'], ['diet', '認識高油、高鹽與高糖飲食', '飲食習慣'], ['diet', '聰明選擇全穀與優質蛋白質', '飲食習慣'], ['diet', '看懂食品營養標示的簡單方法', '飲食習慣'],
+  ['activity', '每週150分鐘運動目標怎麼做到', '運動習慣'], ['activity', '適合初學者的居家有氧運動', '運動習慣'], ['activity', '每天10分鐘伸展放鬆練習', '運動習慣'], ['activity', '如何建立規律運動習慣', '運動習慣'], ['activity', '日常生活中增加活動量的方法', '運動習慣'],
+  ['sleep', '建立規律睡眠時間的方法', '睡眠品質'], ['sleep', '睡前放鬆練習與呼吸技巧', '睡眠品質'], ['sleep', '改善睡眠環境的5個方法', '睡眠品質'], ['sleep', '睡前使用3C產品對睡眠的影響', '睡眠品質'], ['sleep', '如何培養良好的睡眠習慣', '睡眠品質'],
+  ['stress', '認識壓力與身體的反應', '壓力管理'], ['stress', '每天5分鐘的呼吸放鬆練習', '壓力管理'], ['stress', '如何找到適合自己的紓壓方式', '壓力管理'], ['stress', '建立工作與休息的生活節奏', '壓力管理'], ['stress', '面對壓力時可以採取的自我調適方法', '壓力管理'],
+  ['social', '維持人際連結對健康的重要性', '增加人際互動'], ['social', '如何建立自己的支持網絡', '增加人際互動'], ['social', '主動與家人朋友保持聯繫的方法', '增加人際互動'], ['social', '參與社區活動帶來的健康好處', '增加人際互動'], ['social', '改善人際互動與溝通的小技巧', '增加人際互動'],
+  ['substance', '菸品對身體健康的影響', '戒菸／戒酒／戒檳榔'], ['substance', '飲酒過量可能帶來的健康風險', '戒菸／戒酒／戒檳榔'], ['substance', '認識檳榔對健康的危害', '戒菸／戒酒／戒檳榔'], ['substance', '如何設定減量與戒除目標', '戒菸／戒酒／戒檳榔'], ['substance', '尋求戒菸戒酒專業協助的方法', '戒菸／戒酒／戒檳榔'],
+].map(([key, title, category], index) => ({ id: `${key}-${String(index % 5 + 1).padStart(2, '0')}`, title, category, type: 'video', duration: '10:00', durationMinutes: 10, instructor: 'WaCare 衛教團隊', instructorTitle: '生活型態健康教練', description: title, completed: false, assignedDate: '2026-09-07', thumbnailColor: 'from-orange-100 to-amber-100 text-orange-950', tag: '課程' }));
+
+// Canonical course browsing/recommendation pool: exactly five stable videos per
+// Green Prescription pillar (30 total). Legacy core tasks remain available to
+// older screens but are not merged into this canonical pool.
+export const ALL_COURSE_VIDEO_TASKS: VideoTask[] = [...ALL_CORE_VIDEO_TASKS, ...DEMO_COURSE_VIDEOS];
+
 // 預設一開始就加載完整的核心課程影片清單，無需先填問卷
-export const INITIAL_VIDEO_TASKS: VideoTask[] = [...ALL_CORE_VIDEO_TASKS];
+export const INITIAL_VIDEO_TASKS: VideoTask[] = [...ALL_COURSE_VIDEO_TASKS];
 
 export const CATEGORIES_LIST = [
   '運動習慣',

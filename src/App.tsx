@@ -15,7 +15,7 @@ import { GreenPrescriptionDashboard, AssignedExpertPrescription } from './compon
 import { GreenPrescriptionCoursesScreen } from './components/greenPrescription/GreenPrescriptionCoursesScreen';
 import {
   VideoTask,
-  ALL_CORE_VIDEO_TASKS,
+  ALL_COURSE_VIDEO_TASKS,
 } from './components/greenPrescription/greenPrescriptionData';
 import {
   DoctorPrescriptionSection,
@@ -81,9 +81,13 @@ export function App() {
   const [videoTasks, setVideoTasks] = useState<VideoTask[]>(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('wacare_green_prescription_video_cycle') || 'null');
-      if (stored?.cycleId && Array.isArray(stored.tasks) && stored.tasks.length <= 5) return stored.tasks;
+      if (stored?.cycleId && Array.isArray(stored.tasks) && stored.tasks.length > 0) {
+        // Demo reload resets viewing state, while retaining the assigned cycle.
+        return stored.tasks.map((task: VideoTask) => ({ ...task, completed: false }));
+      }
     } catch { /* fall back to the deterministic catalogue */ }
     const goals = questionnaireData.goals;
+    const coursePool = ALL_COURSE_VIDEO_TASKS;
     const categoryWords: Record<string, string[]> = {
       飲食習慣: ['飲食'], diet: ['飲食'],
       運動習慣: ['運動', '身體活動'], physical_activity: ['運動', '身體活動'],
@@ -93,12 +97,12 @@ export function App() {
       '戒菸／戒酒／戒檳榔': ['戒菸', '戒酒', '檳榔', '危害'], harmful_substance_avoidance: ['戒菸', '戒酒', '檳榔', '危害'],
     };
     if (goals.length === 0) {
-      return [...ALL_CORE_VIDEO_TASKS].sort(() => Math.random() - 0.5).slice(0, 5).map((task) => ({ ...task }));
+      return [...coursePool].sort(() => Math.random() - 0.5).slice(0, 5).map((task) => ({ ...task }));
     }
     const selected = new Set<string>();
     const matched = goals.flatMap((goal) => {
       const words = categoryWords[goal] ?? [goal];
-      return ALL_CORE_VIDEO_TASKS.filter((task) => words.some((word) => task.category.includes(word)));
+      return coursePool.filter((task) => words.some((word) => task.category.includes(word)));
     });
     // Round-robin the matched goals so one category cannot consume all five slots.
     const queues = goals.map((goal) => matched.filter((task) => (categoryWords[goal] ?? [goal]).some((word) => task.category.includes(word))));
@@ -108,9 +112,9 @@ export function App() {
       if (candidate && !selected.has(candidate.id)) selected.add(candidate.id);
       if (queues.every((items) => items.length === 0)) break;
     }
-    const fallback = ALL_CORE_VIDEO_TASKS.filter((task) => !selected.has(task.id));
+    const fallback = coursePool.filter((task) => !selected.has(task.id));
     fallback.forEach((task) => { if (selected.size < 5) selected.add(task.id); });
-    return ALL_CORE_VIDEO_TASKS.filter((task) => selected.has(task.id)).map((task) => ({ ...task }));
+    return coursePool.filter((task) => selected.has(task.id)).map((task) => ({ ...task }));
   });
   const [videoViewHistory, setVideoViewHistory] = useState<VideoViewRecord[]>([]);
   const videoCompleted = new Set(videoTasks.filter((task) => task.completed).map((task) => task.id)).size;
@@ -322,9 +326,12 @@ export function App() {
   };
 
   const handleToggleVideoTask = (id: string) => {
-    setVideoTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t))
-    );
+    setVideoTasks((prev) => {
+      const existing = prev.find((task) => task.id === id);
+      if (existing) return prev.map((task) => (task.id === id ? { ...task, completed: !task.completed } : task));
+      const catalogueTask = ALL_COURSE_VIDEO_TASKS.find((task) => task.id === id);
+      return catalogueTask ? [...prev, { ...catalogueTask, completed: true }] : prev;
+    });
   };
 
   // Activity State
