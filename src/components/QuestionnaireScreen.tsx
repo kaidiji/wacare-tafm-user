@@ -177,7 +177,7 @@ export const QuestionnaireScreen: React.FC<Props> = ({
       <LifestyleQuestionnaireFormScreen
         onBack={() => initialView === 'form' ? onBack() : setShowLifestyleForm(false)}
         onSubmit={handleFinishLifestyleForm}
-        initialGoals={submittedGoals}
+        initialGoals={initialView === 'form' ? [] : submittedGoals}
         isConsentCompleted={isConsentCompleted}
         onConsentComplete={() => onSetConsentCompleted?.(true)}
       />

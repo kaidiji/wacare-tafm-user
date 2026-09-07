@@ -33,6 +33,29 @@ import {
   normalizePillarKey,
 } from './doctorPrescriptionsData';
 import { calculateGreenPrescriptionProgress, calculateProgressPercent } from './greenPrescriptionProgress';
+import { VideoDetailScreen } from './VideoDetailScreen';
+
+const DEMO_HISTORY_TASK_DEFINITIONS = [
+  ['diet', '每日攝取至少3份蔬菜、2份水果'], ['diet', '減少高油、高鹽食物'], ['diet', '減少精緻澱粉及含糖飲料'],
+  ['activity', '每週累積至少150分鐘中等強度活動'], ['activity', '每日安排伸展活動'], ['activity', '維持規律運動習慣'],
+  ['sleep', '建立規律作息及固定睡眠時間'], ['sleep', '睡前減少使用3C產品'], ['sleep', '維持適當睡眠時數'],
+  ['stress', '每週安排個人放鬆時間'], ['stress', '練習適合自己的壓力調適方法'],
+  ['social', '維持與家人、朋友或他人的正向互動'], ['social', '建立適合自己的社會支持網絡'],
+  ['substance', '避免或減少菸草、酒精及檳榔'], ['substance', '減少環境毒素暴露'],
+] as const;
+const DEMO_HISTORY_TASK_SNAPSHOT = DEMO_HISTORY_TASK_DEFINITIONS.map(([category, title], index) => ({ id: `history-2026-08-03-${category}-${String(index + 1).padStart(2, '0')}`, category, title, completed: index < 8 }));
+const DEMO_HISTORY_VIDEO_SNAPSHOT = ['正確量血壓的方法', '認識高血壓飲食原則', '建立每日運動習慣'].map((title, index) => ({ id: `history-video-2026-08-03-${index + 1}`, title }));
+const historyCategoryLabel = (category: string) => ({
+  diet: '飲食習慣',
+  activity: '身體活動',
+  physical_activity: '身體活動',
+  sleep: '睡眠品質',
+  stress: '壓力管理',
+  social: '正向互動',
+  positive_social_connection: '正向互動',
+  substance: '戒菸／戒酒／戒檳榔',
+  harmful_substance_avoidance: '戒菸／戒酒／戒檳榔',
+}[category] ?? category);
 
 // Custom Pie Chart Icon matching IMG_9026.PNG
 const DataPieGlyph: React.FC<{ className?: string }> = ({ className = 'w-5 h-5 text-[#f37021]' }) => (
@@ -71,6 +94,8 @@ interface Props {
   selectedDate?: Date;
   onSelectedDateChange?: (date: Date) => void;
   videoViewHistory?: VideoViewRecord[];
+  onVideoViewed?: (videoId: string) => void;
+  onToggleVideoTask?: (id: string) => void;
 }
 
 export const GreenPrescriptionDashboard: React.FC<Props> = ({
@@ -92,6 +117,8 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   selectedDate = new Date(),
   onSelectedDateChange,
   videoViewHistory = [],
+  onVideoViewed,
+  onToggleVideoTask,
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
@@ -134,6 +161,10 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   // State for alert modal when clicking unassigned prescription
   const [showUnassignedAlert, setShowUnassignedAlert] = useState(false);
   const [showQuestionnaireMenu, setShowQuestionnaireMenu] = useState(false);
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+  const [activeMainTab, setActiveMainTab] = useState<'overview' | 'videos' | 'questionnaire' | 'prescriptions' | 'history'>('overview');
+  const [videoCategoryFilter, setVideoCategoryFilter] = useState('all');
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isPrescriptionDispatched) {
@@ -239,6 +270,16 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   const assignedPrescriptionItems = Array.from(new Map(
     assignedSections.flatMap((section) => section.items).map((item) => [item.id, item])
   ).values());
+  const [historicalSnapshots] = useState(() => {
+    const seeded = { snapshotVersion: 2, id: 'green-prescription-history-2026-08-03', startDate: '2026/08/03', endDate: '2026/08/09', videoCompleted: 2, videoTotal: 3, prescriptionTaskSnapshot: DEMO_HISTORY_TASK_SNAPSHOT };
+    try {
+      const stored = JSON.parse(localStorage.getItem('wacare_green_prescription_history') || '[]');
+      const existing = Array.isArray(stored) ? stored.find((entry) => entry?.id === seeded.id) : undefined;
+      const result = existing?.snapshotVersion === 2 && existing.prescriptionTaskSnapshot?.length === 15 ? [existing] : [seeded];
+      localStorage.setItem('wacare_green_prescription_history', JSON.stringify(result));
+      return result;
+    } catch { return [seeded]; }
+  });
   const prescriptionCompletionRate = calculateProgressPercent(
     assignedPrescriptionItems.filter((item) => item.completed).length,
     assignedPrescriptionItems.length
@@ -271,6 +312,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
 
   const handleGoToQuestionnaire = (mode: QuestionnaireView = 'form') => {
     setShowUnassignedAlert(false);
+    if (mode === 'completed-list') return;
     if (onNavigateToQuestionnaire) {
       onNavigateToQuestionnaire(mode);
     } else if (onNavigate) {
@@ -286,6 +328,17 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
       onNavigate('SCR-04');
     }
   };
+
+  const greenVideoCategories = [
+    { key: 'diet', label: '飲食', words: ['飲食'] },
+    { key: 'activity', label: '身體活動', words: ['運動', '身體活動'] },
+    { key: 'sleep', label: '睡眠', words: ['睡眠'] },
+    { key: 'stress', label: '壓力管理', words: ['壓力'] },
+    { key: 'social', label: '正向社會連結', words: ['人際', '社交', '社會'] },
+    { key: 'substance', label: '避免危害物質使用', words: ['戒菸', '戒酒', '檳榔', '危害'] },
+  ];
+  const relatedVideos = tasks.filter((task) => task.type === 'video');
+  const filteredRelatedVideos = videoCategoryFilter === 'all' ? relatedVideos : relatedVideos.filter((task) => greenVideoCategories.find((cat) => cat.key === videoCategoryFilter)?.words.some((word) => task.category.includes(word)));
 
   // -------------------------------------------------------------
   // VIEW: 綠色處方執行分析詳細頁面（沿用既有分析內容）
@@ -1627,9 +1680,47 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
     );
   }
 
+  if (activeVideoId) {
+    const video = tasks.find((task) => task.id === activeVideoId);
+    if (video) return <VideoDetailScreen task={video} isFollowed onBack={() => setActiveVideoId(null)} onToggleComplete={onToggleVideoTask ?? (() => undefined)} onVideoViewed={onVideoViewed} />;
+  }
+
   // -------------------------------------------------------------
   // MAIN VIEW: 綠色處方主儀表板
   // -------------------------------------------------------------
+  if (activeMainTab === 'overview' || activeMainTab === 'videos' || activeMainTab === 'questionnaire' || activeMainTab === 'prescriptions' || activeMainTab === 'history') {
+    const prescriptionGroups = Array.from(assignedSections.reduce((map, section) => {
+      const existing = map.get(section.categoryTitle);
+      if (existing) existing.items = [...existing.items, ...section.items];
+      else map.set(section.categoryTitle, { ...section, items: [...section.items] });
+      return map;
+    }, new Map<string, typeof assignedSections[number]>()).values()).filter((section) => section.items.length > 0);
+    const pendingPrescriptionGroups = prescriptionGroups.map((section) => ({ ...section, items: section.items.filter((item) => !item.completed) })).filter((section) => section.items.length > 0);
+    const demoHistorySnapshot = historicalSnapshots[0];
+    const demoPrescriptionCompleted = demoHistorySnapshot.prescriptionTaskSnapshot.filter((task) => task.completed).length;
+    const demoPrescriptionTotal = demoHistorySnapshot.prescriptionTaskSnapshot.length;
+    const demoHistoryPercentage = calculateProgressPercent(demoHistorySnapshot.videoCompleted + demoPrescriptionCompleted, demoHistorySnapshot.videoTotal + demoPrescriptionTotal);
+    const nextIncomplete = assignedPrescriptionItems.find((item) => !item.completed);
+    const weeklyTasks = [
+      ...(isDoctorAssigned ? [{ id: 'prescriptions', title: '專家處方', category: '', completed: assignedPrescriptionItems.every((item) => item.completed), kind: 'prescription' as const }] : []),
+      { id: 'videos', title: '衛教影片', category: '', completed: greenPrescriptionProgress.videoCompleted >= greenPrescriptionProgress.videoTotal, kind: 'video' as const },
+      { id: 'questionnaire', title: '生活型態問卷', category: '', completed: false, kind: 'questionnaire' as const },
+    ];
+    const prescriptionItemCount = assignedSections.reduce((sum, section) => sum + section.items.length, 0);
+    const uniquePrescriptionItemCount = new Set(assignedSections.flatMap((section) => section.items.map((item) => item.id))).size;
+    return <div className="flex h-full min-h-0 flex-col bg-slate-50 text-slate-900" data-dashboard-layout="task-center" data-prescription-group-count={prescriptionGroups.length} data-prescription-item-count={prescriptionItemCount} data-prescription-unique-composite-id-count={uniquePrescriptionItemCount} data-questionnaire-history-count={questionnaireHistory.length}>
+      <header className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3"><button type="button" onClick={onBack} aria-label="返回健康數據" className="rounded-full p-1 text-slate-600 hover:bg-slate-100"><ChevronLeft className="h-6 w-6" /></button><h1 className="text-lg font-black">綠色處方</h1><div className="w-8" /></header>
+      <div className="shrink-0 space-y-3 border-b border-slate-200 bg-white px-4 py-4"><h2 className="text-sm font-black text-slate-600">本週綠色處方</h2><div className="text-3xl font-black">{greenPrescriptionProgress.completed} / {greenPrescriptionProgress.total}<span className="ml-2 text-sm font-bold text-slate-500">{greenPrescriptionProgress.percentage}%</span></div><div className="h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-orange-500" style={{ width: `${greenPrescriptionProgress.percentage}%` }} /></div><div className="grid grid-cols-2 gap-3 text-sm font-bold"><span>生活型態處方 {greenPrescriptionProgress.prescriptionCompleted} / {greenPrescriptionProgress.prescriptionTotal}</span><span>衛教影片 {greenPrescriptionProgress.videoCompleted} / {greenPrescriptionProgress.videoTotal}</span></div></div>
+      <nav className="flex shrink-0 overflow-x-auto border-b border-slate-200 bg-white" aria-label="綠色處方功能">{([['overview','總覽'],['videos','衛教影片'],['questionnaire','生活問卷'],['prescriptions','專家處方'],['history','執行紀錄']] as const).map(([key,label]) => <button key={key} type="button" onClick={() => setActiveMainTab(key)} className={`shrink-0 flex-1 whitespace-nowrap border-b-2 px-3 py-3 text-sm font-black ${activeMainTab === key ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-600'}`}>{label}</button>)}</nav>
+      <main onClick={(event) => { const target = (event.target as HTMLElement).closest('[data-history-period-id]'); if (target) setExpandedHistoryId(target.getAttribute('data-history-period-id')); }} className="min-h-0 flex-1 overflow-y-auto p-4 pb-10">
+        {activeMainTab === 'overview' && <section className="space-y-5"><h2 className="text-base font-black">本週任務清單</h2>{isDoctorAssigned && <section className="rounded-2xl border border-orange-200 bg-white p-4"><div className="flex items-center justify-between"><div><h3 className="font-black">專家處方</h3><p className="mt-1 text-sm text-slate-600">已完成 {greenPrescriptionProgress.prescriptionCompleted} / {greenPrescriptionProgress.prescriptionTotal}，尚有 {Math.max(0, greenPrescriptionProgress.prescriptionTotal - greenPrescriptionProgress.prescriptionCompleted)} 項待完成</p></div><button type="button" onClick={() => setActiveMainTab('prescriptions')} className="text-xs font-bold text-orange-600">查看全部</button></div>{pendingPrescriptionGroups.map((group) => <div key={group.categoryTitle} className="mt-4 border-t border-slate-100 pt-3"><h4 className="text-sm font-black">{group.categoryTitle}</h4>{group.items.map((item) => <button key={item.id} type="button" data-overview-prescription-task-id={item.id} onClick={() => onTogglePrescriptionItem(group.id, item.id)} className="mt-2 flex w-full items-center gap-2 text-left text-sm text-slate-700"><span className="h-5 w-5 shrink-0 rounded border border-slate-300" />{item.title}</button>)}</div>)}</section>}<button type="button" onClick={() => setActiveMainTab('videos')} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left"><span><span className="block font-black">衛教影片</span><span className="mt-1 block text-sm text-slate-600">已完成 {greenPrescriptionProgress.videoCompleted} / {greenPrescriptionProgress.videoTotal}，尚需 {Math.max(0, greenPrescriptionProgress.videoTotal - greenPrescriptionProgress.videoCompleted)} 部</span></span><ChevronRight className="h-5 w-5 text-slate-400" /></button><button type="button" onClick={() => setActiveMainTab('questionnaire')} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left"><span><span className="block font-black">生活型態問卷</span><span className="mt-1 block text-sm text-slate-500">可隨時重新填寫</span></span><ChevronRight className="h-5 w-5 text-slate-400" /></button></section>}
+        {activeMainTab === 'videos' && <section className="space-y-4"><div className="flex gap-2 overflow-x-auto pb-1">{[{key:'all',label:'全部'},...greenVideoCategories].map((cat) => <button key={cat.key} type="button" onClick={() => setVideoCategoryFilter(cat.key)} className={`shrink-0 rounded-full px-4 py-2 text-xs font-black ${videoCategoryFilter === cat.key ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-600'}`}>{cat.label}</button>)}</div>{filteredRelatedVideos.map((video) => <button key={video.id} type="button" onClick={() => setActiveVideoId(video.id)} className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left"><div className={`flex h-20 w-28 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${video.thumbnailColor}`}>▶</div><div><h3 className="font-black">{video.title}</h3><p className="mt-1 text-xs text-slate-500">{video.category}{video.duration ? ` · ${video.duration}` : ''}</p><p className="mt-2 text-xs font-bold text-orange-600">{video.completed ? '✓ 已完成' : '開始觀看'}</p></div></button>)}</section>}
+        {activeMainTab === 'questionnaire' && <section className="space-y-4"><div className="rounded-2xl border border-slate-200 bg-white p-5"><h2 className="text-lg font-black">生活型態問卷</h2><p className="mt-2 text-sm text-slate-500">了解目前的生活型態狀況，可隨時填寫新的問卷追蹤變化。</p><button type="button" onClick={() => handleGoToQuestionnaire('form')} className="mt-5 rounded-xl bg-orange-500 px-5 py-3 text-sm font-black text-white">填寫生活型態問卷 →</button></div><div><h3 className="mb-2 text-base font-black">過往填寫紀錄</h3><div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">{questionnaireHistory.length === 0 ? <p className="p-6 text-center text-sm text-slate-500">尚無填寫紀錄</p> : [...questionnaireHistory].sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()).map((record) => <div key={record.id} className="p-4"><p className="text-sm font-bold text-slate-900">{record.completedAt}</p><p className="mt-1 text-xs text-slate-600">{record.goals.join('・')}</p></div>)}</div></div></section>}
+        {activeMainTab === 'prescriptions' && <section className="space-y-4">{prescriptionGroups.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">目前尚未收到醫師開立的生活型態處方</div> : prescriptionGroups.map((section) => { const achieved = section.items.filter((item) => item.completed); const incomplete = section.items.filter((item) => !item.completed); return <div key={section.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex justify-between"><h3 className="font-black">{section.categoryTitle}</h3><span className="text-sm font-bold text-slate-500">{achieved.length} / {section.items.length}</span></div><div className="mt-3 space-y-2">{[...incomplete, ...achieved].map((item) => <div key={item.id} className="flex items-center justify-between gap-3 border-t border-slate-100 py-2 text-sm"><button type="button" aria-label={`${item.completed ? '取消完成' : '完成'}${item.title}`} onClick={() => onTogglePrescriptionItem(section.id, item.id)} className={`h-5 w-5 shrink-0 rounded border ${item.completed ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 bg-white'}`}>{item.completed ? '✓' : ''}</button><span className="min-w-0 flex-1">{item.title}</span><span className={item.completed ? 'text-emerald-600' : 'text-slate-400'}>{item.completed ? '已達成' : '未達成'}</span></div>)}</div></div>; })}</section>}
+        {activeMainTab === 'history' && <section className="space-y-4"><h2 className="text-base font-black">過往執行紀錄</h2>{historicalSnapshots.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">目前尚無過往執行紀錄</div> : historicalSnapshots.map((snapshot) => { const tasksForSnapshot = snapshot.prescriptionTaskSnapshot ?? DEMO_HISTORY_TASK_SNAPSHOT; const prescriptionTotal = tasksForSnapshot.length; const prescriptionCompleted = tasksForSnapshot.filter((task) => task.completed).length; const overallTotal = prescriptionTotal + snapshot.videoTotal; const overallCompleted = prescriptionCompleted + snapshot.videoCompleted; const incomplete = overallTotal - overallCompleted; const percentage = calculateProgressPercent(overallCompleted, overallTotal); const expanded = expandedHistoryId === snapshot.id; const completedVideoNames = DEMO_HISTORY_VIDEO_SNAPSHOT.slice(0, Math.min(snapshot.videoCompleted, snapshot.videoTotal)); const incompleteVideoCount = Math.max(0, snapshot.videoTotal - snapshot.videoCompleted); return <div key={snapshot.id} role="button" tabIndex={0} onClick={() => setExpandedHistoryId(expanded ? null : snapshot.id)} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-start justify-between"><div><p className="font-bold">{snapshot.startDate}－{snapshot.endDate}</p><p className="mt-3 text-sm font-bold">整體達成率 {percentage}%</p><p className="mt-1 text-sm text-slate-600">已完成 {overallCompleted} 項｜未完成 {incomplete} 項</p><div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold"><span>專家處方 {prescriptionCompleted} / {prescriptionTotal}</span><span>衛教影片 {snapshot.videoCompleted} / {snapshot.videoTotal}</span></div></div>{expanded ? <ChevronUp className="h-5 w-5 text-slate-400" /> : <ChevronDown className="h-5 w-5 text-slate-400" />}</div>{expanded && <div className="mt-4 border-t border-slate-100 pt-3"><p className="text-sm font-bold">專家處方 {prescriptionCompleted} / {prescriptionTotal}</p>{Array.from(new Set(tasksForSnapshot.map((task) => task.category))).map((category) => <div key={category} className="mt-3"><p className="text-xs font-black text-slate-600">{historyCategoryLabel(String(category))}</p>{[...tasksForSnapshot.filter((task) => task.category === category && !task.completed), ...tasksForSnapshot.filter((task) => task.category === category && task.completed)].map((task) => <p key={task.id} className="mt-1 text-xs text-slate-600">{task.completed ? '✓' : '✕'} {task.title}</p>)}</div>)}<p className="mt-4 text-sm font-bold">衛教影片 {snapshot.videoCompleted} / {snapshot.videoTotal}</p>{completedVideoNames.map((video) => <p key={video.id} className="mt-1 text-xs text-slate-600">✓ {video.title}</p>)}{incompleteVideoCount > 0 && <p className="mt-1 text-xs text-slate-600">未達成觀看影片 {incompleteVideoCount} 部</p>}</div>}</div>; })}</section>}
+      </main>
+    </div>;
+  }
   return (
       <div data-child-prescription-dispatched={String(isPrescriptionDispatched)} data-child-assigned-goals-count={assignedGoals.length} data-child-prescription-section-count={Object.keys(prescriptionData).length} data-child-assigned-prescription-count={assignedPrescriptions.length} data-dashboard-video-total={tasks.length} data-dashboard-video-completed={completedCount} data-green-progress-percentage={greenPrescriptionProgress.percentage} data-green-progress-completed={greenPrescriptionProgress.completed} data-green-progress-total={greenPrescriptionProgress.total} className="flex flex-col h-full bg-slate-100/60 font-sans antialiased text-slate-900 select-none overflow-hidden">
       

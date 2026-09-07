@@ -63,7 +63,17 @@ export function App() {
   const [questionnaireData, setQuestionnaireData] = useState<{
     goals: string[];
     history: LifestyleQuestionnaireRecord[];
-  }>({ goals: [], history: [] });
+  }>({
+    goals: [],
+    history: [{
+      id: 'questionnaire-2026-08-04',
+      completedAt: '2026/08/04 10:30',
+      goals: ['睡眠', '壓力管理', '運動習慣'],
+      status: '已完成',
+      result: '睡眠、壓力管理、運動習慣',
+      advice: '持續追蹤生活型態變化',
+    }],
+  });
   const submittedGoals = questionnaireData.goals;
   const [assignedGoals, setAssignedGoals] = useState<string[]>([]);
   const [videoTasks, setVideoTasks] = useState<VideoTask[]>(ALL_CORE_VIDEO_TASKS);
@@ -74,9 +84,27 @@ export function App() {
   };
 
   // 生活型態處方行動打卡狀態 (初始預設)
-  const [doctorPrescriptions, setDoctorPrescriptions] = useState<
-    Record<string, DoctorPrescriptionSection>
-  >({});
+  const [doctorPrescriptions, setDoctorPrescriptions] = useState<Record<string, DoctorPrescriptionSection>>(() => {
+    try {
+      const raw = localStorage.getItem('wacare_doctor_prescriptions');
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as Record<string, DoctorPrescriptionSection>;
+      const migrated: Record<string, DoctorPrescriptionSection> = {};
+      Object.values(parsed).forEach((section) => {
+        if (!section?.items) return;
+        const key = section.pillarKey || normalizePillarKey(section.id || section.categoryTitle);
+        const existing = migrated[key];
+        const byId = new Map((existing?.items ?? []).map((item) => [item.id, item]));
+        section.items.forEach((item) => {
+          const prior = byId.get(item.id);
+          byId.set(item.id, prior ? { ...prior, ...item, completed: prior.completed || item.completed } : item);
+        });
+        migrated[key] = { ...(existing ?? section), ...section, pillarKey: key, items: Array.from(byId.values()) };
+      });
+      localStorage.setItem('wacare_doctor_prescriptions', JSON.stringify(migrated));
+      return migrated;
+    } catch { return {}; }
+  });
 
   const handleTogglePrescriptionItem = (pillarKey: string, itemId: string) => {
     setDoctorPrescriptions((prev) => {
@@ -96,12 +124,10 @@ export function App() {
         ),
       };
 
-      const next = {
-        ...prev,
-        [pillarKey]: updatedSection,
-        [normalized]: updatedSection,
-        [section.pillarKey]: updatedSection,
-      };
+      // Keep a single canonical section key. Writing aliases here made
+      // Object.values() render the same prescription group multiple times.
+      const canonicalKey = section.pillarKey || normalized;
+      const next = { ...prev, [canonicalKey]: updatedSection };
 
       try {
         localStorage.setItem('wacare_doctor_prescriptions', JSON.stringify(next));
@@ -564,6 +590,7 @@ export function App() {
               onSelectedDateChange={setSelectedHealthDate}
               videoViewHistory={videoViewHistory}
               onVideoViewed={handleVideoViewed}
+              onToggleVideoTask={handleToggleVideoTask}
             />
           )}
 
