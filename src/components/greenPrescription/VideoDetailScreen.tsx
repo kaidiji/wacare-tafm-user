@@ -55,10 +55,7 @@ export const VideoDetailScreen: React.FC<Props> = ({
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeTab, setActiveTab] = useState<'content' | 'reviews'>('content');
-  const [showShareToast, setShowShareToast] = useState(false);
   const [showFollowToast, setShowFollowToast] = useState(false);
-  const [showLineToast, setShowLineToast] = useState(false);
-  const [showCompletedToast, setShowCompletedToast] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [showControls, setShowControls] = useState(true);
   const viewRecordedRef = useRef(false);
@@ -104,8 +101,6 @@ export const VideoDetailScreen: React.FC<Props> = ({
   useEffect(() => {
     if (isPlaying && followedState && !task.completed) {
       onToggleComplete(task.id);
-      setShowCompletedToast(true);
-      setTimeout(() => setShowCompletedToast(false), 3000);
     }
   }, [isPlaying, followedState, task.completed, task.id, onToggleComplete]);
 
@@ -157,21 +152,6 @@ export const VideoDetailScreen: React.FC<Props> = ({
     setCurrentTime(Math.floor((newPercent / 100) * totalSeconds));
   };
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: task.title,
-        text: `推薦您觀看專業綠色處方衛教影片：${task.title}`,
-        url: window.location.href,
-      }).catch(() => {
-        setShowShareToast(true);
-      });
-    } else {
-      setShowShareToast(true);
-      setTimeout(() => setShowShareToast(false), 2500);
-    }
-  };
-
   return (
     <div className="flex flex-col h-full bg-[#FAFAFA] font-sans antialiased text-slate-900 select-none overflow-hidden relative">
       
@@ -188,31 +168,9 @@ export const VideoDetailScreen: React.FC<Props> = ({
             <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
           </button>
 
-          {/* Logo box */}
-          <div className="h-6 px-2.5 bg-slate-200 text-slate-600 rounded flex items-center text-xs font-black tracking-tight border border-slate-300/60">
-            WaCare
-          </div>
-
-          {/* Home icon */}
-          <button
-            type="button"
-            onClick={() => onNavigate ? onNavigate('SCR-03') : onBack()}
-            className="p-1 text-slate-700 hover:text-slate-950 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
-            aria-label="回首頁"
-          >
-            <Home className="w-5 h-5" />
-          </button>
+          <h1 className="text-base font-black text-slate-900">綠色處方</h1>
         </div>
-
-        {/* Right Circular Outline Share button */}
-        <button
-          type="button"
-          onClick={handleShare}
-          className="w-8 h-8 rounded-full border border-slate-300 text-slate-700 hover:text-orange-600 hover:border-orange-500 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
-          aria-label="分享課程"
-        >
-          <Share2 className="w-4 h-4 text-orange-500" />
-        </button>
+        <div className="w-8" />
       </header>
 
       {/* Main Content Area */}
@@ -232,13 +190,7 @@ export const VideoDetailScreen: React.FC<Props> = ({
           {/* Background Video Stage / Thumbnail Mock */}
           <div className={`absolute inset-0 bg-gradient-to-br ${task.thumbnailColor || 'from-sky-800 via-teal-800 to-indigo-900'} flex flex-col justify-between p-4 overflow-hidden`}>
             
-            {/* Top organization brand in video banner */}
-            <div className="flex items-center justify-between z-10 text-[10px] font-bold text-white/90">
-              <div className="flex items-center gap-1.5 opacity-90 drop-shadow">
-                <span>全銀運動</span>
-                <span className="text-amber-300 font-black">WaCare</span>
-                <span>社團法人數位人道協會</span>
-              </div>
+            <div className="flex items-center justify-end z-10 text-[10px] font-bold text-white/90">
               <span className="text-[10px] font-bold text-white/80 bg-black/40 px-1.5 py-0.5 rounded">
                 1080P
               </span>
@@ -452,7 +404,6 @@ export const VideoDetailScreen: React.FC<Props> = ({
           )}
         </div>
 
-        {/* 3. Course Info Section (matching IMG_8948.PNG) */}
         <div className="p-4 bg-white space-y-2.5">
           
           {/* Title */}
@@ -460,18 +411,17 @@ export const VideoDetailScreen: React.FC<Props> = ({
             {task.title.replace(/【.*?】/, '')}
           </h1>
 
-          {/* Tags row: 適合個人 | 免費 (IMG_8948.PNG) */}
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded text-xs font-bold bg-[#F5F4F0] text-slate-700">
-              適合個人
-            </span>
-            <span className="px-1.5 py-0.2 rounded text-xs font-bold border border-red-500 text-red-500">
-              免費
-            </span>
-          </div>
+          {/* Green Prescription video metadata only. */}
+          <div className="text-xs font-bold text-slate-500">{task.category}・{task.duration}</div>
+
+          <p className="text-sm leading-relaxed text-slate-600">{task.description}</p>
+        </div>
+
+        {/* Legacy marketplace course details are intentionally not part of the Green Prescription player. */}
+        <div className="hidden">
 
           {/* Price & Rating Row (IMG_8948.PNG) */}
-          <div className="flex items-center justify-between pt-1">
+          <div className="hidden">
             <div className="space-y-0.5">
               <div className="text-2xl font-black text-[#F97316] tracking-tight leading-none">
                 免費
@@ -497,7 +447,7 @@ export const VideoDetailScreen: React.FC<Props> = ({
           <hr className="border-slate-100 my-2" />
 
           {/* 4. Expert Profile & 關於專家 Button (IMG_8948.PNG) */}
-          <div className="space-y-3">
+          <div className="hidden">
             <div className="flex items-center gap-3">
               {/* Circular Galaxy Avatar: 全銀運動 WaCare */}
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-950 via-purple-900 to-slate-900 text-white flex flex-col items-center justify-center text-[9px] font-black shadow-xs shrink-0 border border-purple-300/40 leading-tight text-center p-1 relative overflow-hidden">
@@ -529,7 +479,7 @@ export const VideoDetailScreen: React.FC<Props> = ({
         </div>
 
         {/* 5. Tabs Header: 內容 | 評價 (IMG_8948.PNG) */}
-        <div className="mt-1.5 bg-white border-b border-slate-200 flex">
+        <div className="hidden">
           <button
             type="button"
             onClick={() => setActiveTab('content')}
@@ -565,44 +515,6 @@ export const VideoDetailScreen: React.FC<Props> = ({
         {activeTab === 'content' && (
           <div className="p-4 space-y-4">
             
-            {/* 6. LINE Community Banner (IMG_8948.PNG) */}
-            <div className="rounded-2xl overflow-hidden border border-orange-200/80 shadow-xs relative bg-gradient-to-r from-orange-50/90 via-amber-50 to-orange-100/80 p-4 flex items-center justify-between">
-              <div className="space-y-2 z-10 max-w-[65%]">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-base font-black text-indigo-950 tracking-tight">
-                    樂齡朋友一起加入
-                  </span>
-                  <span className="bg-[#06C755] text-white text-[11px] font-black px-1.5 py-0.2 rounded flex items-center gap-0.5">
-                    LINE
-                  </span>
-                  <span className="text-base font-black text-slate-800">
-                    社群
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-600 font-bold leading-tight">
-                  獲得最新課程資訊 增加樂齡互動 學習健康新知
-                </p>
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowLineToast(true);
-                      setTimeout(() => setShowLineToast(false), 2500);
-                    }}
-                    className="px-3.5 py-1 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-xs shadow-xs hover:brightness-105 active:scale-95 cursor-pointer flex items-center gap-1 border border-orange-600/40"
-                  >
-                    <span>點擊加入</span>
-                    <span>👆</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Seniors illustration */}
-              <div className="text-4xl shrink-0 z-10 drop-shadow-sm pr-1">
-                👵👴🌿
-              </div>
-            </div>
-
             {/* Educational Highlights */}
             <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-2">
               <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
@@ -617,8 +529,7 @@ export const VideoDetailScreen: React.FC<Props> = ({
             {/* Course Chapters Outline */}
             <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs space-y-3">
               <div className="text-xs font-black text-slate-800 flex items-center justify-between">
-                <span>課程章節與影音進度</span>
-                <span className="text-[11px] text-slate-500 font-normal">共 3 節課</span>
+                <span>段落資訊</span>
               </div>
               
               <div className="space-y-2 text-xs">
@@ -628,7 +539,6 @@ export const VideoDetailScreen: React.FC<Props> = ({
                     <span className="font-extrabold text-slate-900">01. 基礎原理與生活應用</span>
                   </div>
                   <span className="text-[11px] font-bold text-orange-700">
-                    {followedState ? '進行中' : '鎖定中'}
                   </span>
                 </div>
 
@@ -649,24 +559,6 @@ export const VideoDetailScreen: React.FC<Props> = ({
                 </div>
               </div>
             </div>
-
-            {/* Task Completion Status Card */}
-            {followedState && (
-              <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-2xs flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-black text-slate-900 block">
-                    綠色處方任務完成狀態
-                  </span>
-                  <span className="text-[11px] text-slate-500">
-                    進入觀看並播放即已自動計入學習儀表板成果
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-orange-50 text-orange-700 border border-orange-200 shadow-2xs">
-                  <CheckCircle2 className="w-4 h-4 text-orange-600 fill-orange-100" />
-                  <span>已完成任務</span>
-                </div>
-              </div>
-            )}
 
           </div>
         )}
@@ -726,45 +618,11 @@ export const VideoDetailScreen: React.FC<Props> = ({
         )}
       </div>
 
-      {/* 7. Bottom Fixed Action Bar (IMG_8948.PNG with Big "分享" Button) */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-3 z-20 shadow-lg">
-        <button
-          type="button"
-          onClick={handleShare}
-          className="w-full py-3 rounded-full border-2 border-orange-500 text-orange-500 hover:bg-orange-50 active:scale-98 text-base font-black transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-        >
-          <Share2 className="w-5 h-5 stroke-[2.5]" />
-          <span>分享</span>
-        </button>
-      </div>
-
-      {/* Share Toast Notification */}
-      {showShareToast && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-xs text-white px-4 py-2 rounded-full text-xs font-extrabold z-50 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
-          已複製課程連結，歡迎分享給親友！🔗
-        </div>
-      )}
-
       {/* Follow Toast Notification */}
       {showFollowToast && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-4 py-2 rounded-full text-xs font-black z-50 shadow-lg flex items-center gap-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
           <CheckCircle2 className="w-4 h-4" />
           已成功追蹤專家！現在可以開始觀看課程囉 🎉
-        </div>
-      )}
-
-      {/* LINE Community Toast */}
-      {showLineToast && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-[#06C755] text-white px-4 py-2 rounded-full text-xs font-black z-50 shadow-lg flex items-center gap-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
-          已為您複製 LINE 社群加入邀請連結！💬
-        </div>
-      )}
-
-      {/* Completed Toast Notification */}
-      {showCompletedToast && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-4 py-2 rounded-full text-xs font-black z-50 shadow-lg flex items-center gap-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
-          <CheckCircle2 className="w-4 h-4" />
-          綠色處方任務已順利完成！🌿
         </div>
       )}
 
