@@ -415,6 +415,10 @@ export const VideoDetailScreen: React.FC<Props> = ({
           <div className="text-xs font-bold text-slate-500">{task.category}・{task.duration}</div>
 
           <p className="text-sm leading-relaxed text-slate-600">{task.description}</p>
+          <section className="pt-3 space-y-1"><h2 className="text-sm font-black text-slate-900">影片摘要</h2><p className="text-sm leading-relaxed text-slate-600">{task.description}</p></section>
+          <section className="pt-3 space-y-1"><h2 className="text-sm font-black text-slate-900">影片介紹</h2><p className="text-sm leading-relaxed text-slate-600">透過生活情境與實用建議，協助你理解並逐步建立適合自己的健康習慣。</p></section>
+          <section className="pt-3 space-y-1"><h2 className="text-sm font-black text-slate-900">綠色處方衛教核心重點</h2><p className="text-sm leading-relaxed text-slate-600">看完影片後，選擇一項今天就能開始實踐的健康行動。</p></section>
+          <section className="pt-3 space-y-2"><h2 className="text-sm font-black text-slate-900">段落資訊</h2><div className="space-y-1 text-sm text-slate-600"><div className="flex justify-between"><span>01　基礎概念與生活應用</span><span>00:00</span></div><div className="flex justify-between"><span>02　專家示範技巧與常見盲點</span><span>12:30</span></div><div className="flex justify-between"><span>03　日常生活實踐與目標追蹤</span><span>25:40</span></div></div></section>
         </div>
 
         {/* Legacy marketplace course details are intentionally not part of the Green Prescription player. */}

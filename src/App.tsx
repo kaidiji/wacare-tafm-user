@@ -23,6 +23,16 @@ import {
   getDoctorPrescriptionSection,
   buildAssignedPrescription,
 } from './components/greenPrescription/doctorPrescriptionsData';
+import {
+  HistoricalSnapshot,
+  loadHistoricalSnapshots,
+  saveHistoricalSnapshots,
+  loadPeriodStart,
+  savePeriodStart,
+  isPeriodDue,
+  buildSettlementSnapshot,
+  hasSettleableActivity,
+} from './components/greenPrescription/greenPrescriptionHistory';
 
 import { QuestionnaireScreen } from './components/QuestionnaireScreen';
 
@@ -152,6 +162,24 @@ export function App() {
     } catch { return {}; }
   });
 
+  // 執行紀錄：週期性結算狀態（放棄即時記錄，改為週期性結算）
+  const [historicalSnapshots, setHistoricalSnapshots] = useState<HistoricalSnapshot[]>(() => loadHistoricalSnapshots());
+  const [recordingPeriodStart, setRecordingPeriodStart] = useState<string>(() => loadPeriodStart());
+  // 問卷送出時（舊處方即將被清空前）先凍結尚未結算的處方進度，
+  // 待醫師實際派發新處方時再一併結算成一筆記錄（紀錄刷新規則）
+  const [frozenPrescriptionSnapshot, setFrozenPrescriptionSnapshot] = useState<{
+    doctorPrescriptions: Record<string, DoctorPrescriptionSection>;
+    expertName?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    saveHistoricalSnapshots(historicalSnapshots);
+  }, [historicalSnapshots]);
+
+  useEffect(() => {
+    savePeriodStart(recordingPeriodStart);
+  }, [recordingPeriodStart]);
+
   const handleTogglePrescriptionItem = (pillarKey: string, itemId: string) => {
     setDoctorPrescriptions((prev) => {
       const normalized = normalizePillarKey(pillarKey);
@@ -221,6 +249,16 @@ export function App() {
 
   // 當使用者填寫完問卷提交後：只記錄病人需求並在聊天室發送病人的需求訊息，不直接派送處方 (核心需求)
   const handleSubmitQuestionnaire = (goals: string[]) => {
+    // 紀錄刷新規則：新問卷即將開啟新的派送流程，舊處方資料在此之後就會被清空，
+    // 因此先凍結尚未結算的舊處方進度，待醫師實際派發新處方時再一併結算成一筆歷史紀錄。
+    if (isPrescriptionDispatched && Object.keys(doctorPrescriptions).length > 0) {
+      setFrozenPrescriptionSnapshot({
+        doctorPrescriptions,
+        expertName: assignedPrescriptions[0]?.expertName,
+      });
+    } else {
+      setFrozenPrescriptionSnapshot(null);
+    }
     setIsQuestionnaireSubmitted(true);
     setIsPrescriptionDispatched(false);
     setAssignedGoals([]); // 尚未經專家派送，處方尚未啟用
@@ -265,6 +303,30 @@ export function App() {
 
   const questionnaireHistory = questionnaireData.history;
 
+  // 記錄結算機制：純影片觀看週期（尚未有醫師派發的處方）每週結算一次，
+  // 逾一週未派送新處方時自動將累積的觀看紀錄結算成一筆歷史紀錄並開始新週期。
+  useEffect(() => {
+    if (isPrescriptionDispatched) return;
+    const settleIfDue = () => {
+      if (!isPeriodDue(recordingPeriodStart)) return;
+      const settledAt = new Date();
+      if (hasSettleableActivity({ videoTasks, doctorPrescriptions: {} })) {
+        const snapshot = buildSettlementSnapshot({
+          periodStartIso: recordingPeriodStart,
+          now: settledAt,
+          videoTasks,
+          doctorPrescriptions: {},
+        });
+        setHistoricalSnapshots((prev) => [snapshot, ...prev]);
+      }
+      setRecordingPeriodStart(settledAt.toISOString());
+      setVideoTasks((prev) => prev.map((task) => ({ ...task, completed: false })));
+    };
+    settleIfDue();
+    const timer = setInterval(settleIfDue, 60 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [isPrescriptionDispatched, recordingPeriodStart, videoTasks]);
+
   // 模擬專家診所從後台派送處方與訊息 (使用者明確要求：按此按鍵才派送訊息跟處方)
   const handleDispatchPrescription = () => {
     if (questionnaireData.history.length === 0 || isPrescriptionDispatched) return;
@@ -282,6 +344,24 @@ export function App() {
 
     const assignedPrescriptionSnapshot = buildAssignedPrescription(targetGoals);
     if (Object.keys(assignedPrescriptionSnapshot).length === 0) return;
+
+    // 紀錄刷新規則：醫師派發新處方時，立即將先前累積的活動（含凍結的舊處方進度與本次派送前
+    // 觀看的影片）結算成一筆歷史紀錄，並開始新的記錄週期。
+    const settledAt = new Date();
+    const priorDoctorPrescriptions = frozenPrescriptionSnapshot?.doctorPrescriptions ?? {};
+    if (hasSettleableActivity({ videoTasks, doctorPrescriptions: priorDoctorPrescriptions })) {
+      const settlementSnapshot = buildSettlementSnapshot({
+        periodStartIso: recordingPeriodStart,
+        now: settledAt,
+        videoTasks,
+        doctorPrescriptions: priorDoctorPrescriptions,
+        expertName: frozenPrescriptionSnapshot?.expertName,
+      });
+      setHistoricalSnapshots((prev) => [settlementSnapshot, ...prev]);
+    }
+    setRecordingPeriodStart(settledAt.toISOString());
+    setVideoTasks((prev) => prev.map((task) => ({ ...task, completed: false })));
+    setFrozenPrescriptionSnapshot(null);
 
     setQuestionnaireData((current) => ({
       ...current,
@@ -640,6 +720,7 @@ export function App() {
               videoViewHistory={videoViewHistory}
               onVideoViewed={handleVideoViewed}
               onToggleVideoTask={handleToggleVideoTask}
+              historicalSnapshots={historicalSnapshots}
             />
           )}
 
