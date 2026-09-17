@@ -2,7 +2,7 @@ import { DoctorPrescriptionSection } from './doctorPrescriptionsData';
 import { DEFAULT_WEEKLY_VIDEO_TARGET, VideoTask } from './greenPrescriptionData';
 
 // 執行紀錄規則（2026/09 調整）：
-// 1. 放棄即時記錄，改為週期性結算 —— 純影片觀看週期每週結算一次；
+// 1. 放棄即時記錄，改為週期性結算 —— 純影片觀看週期以「週」為單位（週一至週日）結算一次；
 //    醫師派發新處方時則立即結算目前週期。
 // 2. 每當醫師根據新問卷派發一次新處方，系統即「重新整理」：
 //    將此前累積的活動（觀看影片、舊處方執行進度）結算成一筆歷史紀錄，並開始新的記錄週期。
@@ -28,7 +28,23 @@ export interface HistoricalSnapshot {
 const HISTORY_SNAPSHOT_VERSION = 3;
 const HISTORY_STORAGE_KEY = 'wacare_green_prescription_history';
 const PERIOD_START_STORAGE_KEY = 'wacare_green_prescription_period_start';
-export const SETTLEMENT_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 每週結算一次（純影片週期）
+
+// 週期以「週一至週日」為一個結算週，而非指派後固定 7 天倒數；達成率、結算日期
+// 一律以該週的週日為終點計算，而非以系統實際檢查到期的當下時間為準。
+export function getWeekStart(date: Date): Date {
+  const weekStart = new Date(date);
+  weekStart.setHours(0, 0, 0, 0);
+  const day = weekStart.getDay(); // 0 = 週日 ... 6 = 週六
+  const diffToMonday = day === 0 ? 6 : day - 1;
+  weekStart.setDate(weekStart.getDate() - diffToMonday);
+  return weekStart;
+}
+
+export function getWeekEnd(date: Date): Date {
+  const weekEnd = getWeekStart(date);
+  weekEnd.setDate(weekEnd.getDate() + 6); // 週日
+  return weekEnd;
+}
 
 const DEMO_HISTORY_TASK_DEFINITIONS = [
   ['diet', '每日攝取至少3份蔬菜、2份水果'], ['diet', '減少高油、高鹽食物'], ['diet', '減少精緻澱粉及含糖飲料'],
@@ -90,13 +106,13 @@ export function loadPeriodStart(): string {
   } catch {
     /* ignore and fall through */
   }
-  const now = new Date().toISOString();
+  const weekStart = getWeekStart(new Date()).toISOString();
   try {
-    localStorage.setItem(PERIOD_START_STORAGE_KEY, now);
+    localStorage.setItem(PERIOD_START_STORAGE_KEY, weekStart);
   } catch {
     /* ignore persistence failure */
   }
-  return now;
+  return weekStart;
 }
 
 export function savePeriodStart(iso: string): void {
@@ -108,9 +124,9 @@ export function savePeriodStart(iso: string): void {
 }
 
 export function isPeriodDue(periodStartIso: string, now: Date = new Date()): boolean {
-  const start = new Date(periodStartIso).getTime();
-  if (Number.isNaN(start)) return false;
-  return now.getTime() - start >= SETTLEMENT_INTERVAL_MS;
+  const start = new Date(periodStartIso);
+  if (Number.isNaN(start.getTime())) return false;
+  return getWeekStart(now).getTime() > getWeekStart(start).getTime();
 }
 
 function formatHistoryDate(date: Date): string {

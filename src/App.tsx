@@ -32,6 +32,8 @@ import {
   isPeriodDue,
   buildSettlementSnapshot,
   hasSettleableActivity,
+  getWeekStart,
+  getWeekEnd,
 } from './components/greenPrescription/greenPrescriptionHistory';
 
 import { QuestionnaireScreen } from './components/QuestionnaireScreen';
@@ -75,14 +77,7 @@ export function App() {
     history: LifestyleQuestionnaireRecord[];
   }>({
     goals: [],
-    history: [{
-      id: 'questionnaire-2026-08-04',
-      completedAt: '2026/08/04 10:30',
-      goals: ['睡眠', '壓力管理', '運動習慣'],
-      status: '已完成',
-      result: '睡眠、壓力管理、運動習慣',
-      advice: '持續追蹤生活型態變化',
-    }],
+    history: [],
   });
   const submittedGoals = questionnaireData.goals;
   const [assignedGoals, setAssignedGoals] = useState<string[]>([]);
@@ -165,12 +160,8 @@ export function App() {
   // 執行紀錄：週期性結算狀態（放棄即時記錄，改為週期性結算）
   const [historicalSnapshots, setHistoricalSnapshots] = useState<HistoricalSnapshot[]>(() => loadHistoricalSnapshots());
   const [recordingPeriodStart, setRecordingPeriodStart] = useState<string>(() => loadPeriodStart());
-  // 問卷送出時（舊處方即將被清空前）先凍結尚未結算的處方進度，
-  // 待醫師實際派發新處方時再一併結算成一筆記錄（紀錄刷新規則）
-  const [frozenPrescriptionSnapshot, setFrozenPrescriptionSnapshot] = useState<{
-    doctorPrescriptions: Record<string, DoctorPrescriptionSection>;
-    expertName?: string;
-  } | null>(null);
+  // 新問卷等待審核期間，舊處方仍可繼續執行。
+  const [hasPendingPrescription, setHasPendingPrescription] = useState(false);
 
   useEffect(() => {
     saveHistoricalSnapshots(historicalSnapshots);
@@ -249,20 +240,8 @@ export function App() {
 
   // 當使用者填寫完問卷提交後：只記錄病人需求並在聊天室發送病人的需求訊息，不直接派送處方 (核心需求)
   const handleSubmitQuestionnaire = (goals: string[]) => {
-    // 紀錄刷新規則：新問卷即將開啟新的派送流程，舊處方資料在此之後就會被清空，
-    // 因此先凍結尚未結算的舊處方進度，待醫師實際派發新處方時再一併結算成一筆歷史紀錄。
-    if (isPrescriptionDispatched && Object.keys(doctorPrescriptions).length > 0) {
-      setFrozenPrescriptionSnapshot({
-        doctorPrescriptions,
-        expertName: assignedPrescriptions[0]?.expertName,
-      });
-    } else {
-      setFrozenPrescriptionSnapshot(null);
-    }
     setIsQuestionnaireSubmitted(true);
-    setIsPrescriptionDispatched(false);
-    setAssignedGoals([]); // 尚未經專家派送，處方尚未啟用
-    setDoctorPrescriptions({});
+    setHasPendingPrescription(true);
     const submittedAt = new Date();
     const padDatePart = (value: number) => String(value).padStart(2, '0');
     const completedAt = `${submittedAt.getFullYear()}/${padDatePart(submittedAt.getMonth() + 1)}/${padDatePart(submittedAt.getDate())} ${padDatePart(submittedAt.getHours())}:${padDatePart(submittedAt.getMinutes())}`;
@@ -303,33 +282,42 @@ export function App() {
 
   const questionnaireHistory = questionnaireData.history;
 
-  // 記錄結算機制：純影片觀看週期（尚未有醫師派發的處方）每週結算一次，
-  // 逾一週未派送新處方時自動將累積的觀看紀錄結算成一筆歷史紀錄並開始新週期。
+  // 已指派處方及未指派的影片執行紀錄，皆每週結算一次。
+  // 跨入新的一週（週一至週日）時自動將累積的觀看紀錄結算成一筆歷史紀錄並開始新週期。
+  // 達成率與結算日期一律以「週日」為該週終點計算，而非以系統實際檢查到期的當下時間為準。
   useEffect(() => {
-    if (isPrescriptionDispatched) return;
     const settleIfDue = () => {
-      if (!isPeriodDue(recordingPeriodStart)) return;
-      const settledAt = new Date();
-      if (hasSettleableActivity({ videoTasks, doctorPrescriptions: {} })) {
+      const now = new Date();
+      if (!isPeriodDue(recordingPeriodStart, now)) return;
+      const periodStartDate = new Date(recordingPeriodStart);
+      const settledWeekEnd = getWeekEnd(periodStartDate);
+      const activePrescriptions = isPrescriptionDispatched ? doctorPrescriptions : {};
+      if (hasSettleableActivity({ videoTasks, doctorPrescriptions: activePrescriptions })) {
         const snapshot = buildSettlementSnapshot({
           periodStartIso: recordingPeriodStart,
-          now: settledAt,
+          now: settledWeekEnd,
           videoTasks,
-          doctorPrescriptions: {},
+          doctorPrescriptions: activePrescriptions,
+          expertName: isPrescriptionDispatched ? '示範診所' : undefined,
         });
         setHistoricalSnapshots((prev) => [snapshot, ...prev]);
       }
-      setRecordingPeriodStart(settledAt.toISOString());
+      setRecordingPeriodStart(getWeekStart(now).toISOString());
       setVideoTasks((prev) => prev.map((task) => ({ ...task, completed: false })));
+      if (isPrescriptionDispatched) {
+        setDoctorPrescriptions((prev: Record<string, DoctorPrescriptionSection>) => Object.fromEntries(Object.entries(prev).map(([key, section]) => [key, {
+          ...section, items: section.items.map((item) => ({ ...item, completed: false, completedAt: undefined })),
+        }])));
+      }
     };
     settleIfDue();
     const timer = setInterval(settleIfDue, 60 * 60 * 1000);
     return () => clearInterval(timer);
-  }, [isPrescriptionDispatched, recordingPeriodStart, videoTasks]);
+  }, [isPrescriptionDispatched, recordingPeriodStart, videoTasks, doctorPrescriptions]);
 
   // 模擬專家診所從後台派送處方與訊息 (使用者明確要求：按此按鍵才派送訊息跟處方)
   const handleDispatchPrescription = () => {
-    if (questionnaireData.history.length === 0 || isPrescriptionDispatched) return;
+    if (!isQuestionnaireSubmitted || !hasPendingPrescription) return;
     console.debug('[video-debug] before dispatch', {
       taskCount: videoTasks.length,
       completed: videoCompleted,
@@ -345,23 +333,23 @@ export function App() {
     const assignedPrescriptionSnapshot = buildAssignedPrescription(targetGoals);
     if (Object.keys(assignedPrescriptionSnapshot).length === 0) return;
 
-    // 紀錄刷新規則：醫師派發新處方時，立即將先前累積的活動（含凍結的舊處方進度與本次派送前
+    // 紀錄刷新規則：醫師派發新處方時，立即將先前累積的活動（含舊處方最新進度與本次派送前
     // 觀看的影片）結算成一筆歷史紀錄，並開始新的記錄週期。
     const settledAt = new Date();
-    const priorDoctorPrescriptions = frozenPrescriptionSnapshot?.doctorPrescriptions ?? {};
+    const priorDoctorPrescriptions = isPrescriptionDispatched ? doctorPrescriptions : {};
     if (hasSettleableActivity({ videoTasks, doctorPrescriptions: priorDoctorPrescriptions })) {
       const settlementSnapshot = buildSettlementSnapshot({
         periodStartIso: recordingPeriodStart,
         now: settledAt,
         videoTasks,
         doctorPrescriptions: priorDoctorPrescriptions,
-        expertName: frozenPrescriptionSnapshot?.expertName,
+        expertName: assignedPrescriptions[0]?.expertName,
       });
       setHistoricalSnapshots((prev) => [settlementSnapshot, ...prev]);
     }
     setRecordingPeriodStart(settledAt.toISOString());
     setVideoTasks((prev) => prev.map((task) => ({ ...task, completed: false })));
-    setFrozenPrescriptionSnapshot(null);
+    setHasPendingPrescription(false);
 
     setQuestionnaireData((current) => ({
       ...current,
@@ -480,7 +468,7 @@ export function App() {
               <span>•</span>
               <span className="flex items-center gap-1">
                 處方派發狀態：
-                {isPrescriptionDispatched ? (
+                {isPrescriptionDispatched && !hasPendingPrescription ? (
                   <span className="text-emerald-400 font-bold flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
                     處方已正式派送給個案
@@ -504,20 +492,20 @@ export function App() {
           <button
             type="button"
             onClick={() => handleDispatchPrescription()}
-            disabled={isPrescriptionDispatched || questionnaireData.history.length === 0}
-            aria-disabled={isPrescriptionDispatched || questionnaireData.history.length === 0}
+            disabled={!hasPendingPrescription || !isQuestionnaireSubmitted}
+            aria-disabled={!hasPendingPrescription || !isQuestionnaireSubmitted}
             className={`px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 transition-all shadow-md ${
-              isPrescriptionDispatched
+              isPrescriptionDispatched && !hasPendingPrescription
                 ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                : questionnaireData.history.length > 0
+                : isQuestionnaireSubmitted
                 ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white ring-2 ring-emerald-400/50 shadow-emerald-900/30 animate-pulse cursor-pointer active:scale-95'
                 : 'bg-slate-700/50 text-slate-400 cursor-not-allowed opacity-60'
             }`}
-            title={questionnaireData.history.length === 0 ? '請先完成生活型態問卷' : '從專家診所後台將處方任務與訊息派送給使用者'}
+            title={!isQuestionnaireSubmitted ? '請先完成生活型態問卷' : '從專家診所後台將處方任務與訊息派送給使用者'}
           >
             <span className="text-sm">👨‍⚕️</span>
             <span>
-              {isPrescriptionDispatched
+              {isPrescriptionDispatched && !hasPendingPrescription
                 ? '處方已派送完成'
                 : '模擬後台派送處方'}
             </span>
