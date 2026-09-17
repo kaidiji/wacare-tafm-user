@@ -709,6 +709,7 @@ export function App() {
               onVideoViewed={handleVideoViewed}
               onToggleVideoTask={handleToggleVideoTask}
               historicalSnapshots={historicalSnapshots}
+              recordingPeriodStart={recordingPeriodStart}
             />
           )}
 

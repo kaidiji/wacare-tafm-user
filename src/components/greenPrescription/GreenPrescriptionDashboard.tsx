@@ -34,7 +34,7 @@ import {
 } from './doctorPrescriptionsData';
 import { calculateGreenPrescriptionProgress, calculateProgressPercent } from './greenPrescriptionProgress';
 import { VideoDetailScreen } from './VideoDetailScreen';
-import { HistoricalSnapshot } from './greenPrescriptionHistory';
+import { HistoricalSnapshot, getWeekEnd } from './greenPrescriptionHistory';
 
 const DEMO_HISTORY_VIDEO_SNAPSHOT = ['正確量血壓的方法', '認識高血壓飲食原則', '建立每日運動習慣'].map((title, index) => ({ id: `history-video-2026-08-03-${index + 1}`, title }));
 const historyCategoryLabel = (category: string) => ({
@@ -68,6 +68,7 @@ export interface AssignedExpertPrescription {
 }
 
 interface Props {
+  recordingPeriodStart: string;
   onBack: () => void;
   onNavigateToTasks: () => void;
   tasks: VideoTask[];
@@ -113,7 +114,10 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
   onVideoViewed,
   onToggleVideoTask,
   historicalSnapshots = [],
+  recordingPeriodStart,
 }) => {
+  const periodStartDate = new Date(recordingPeriodStart);
+  const formatPeriodDate = (date: Date) => `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}（${'日一二三四五六'[date.getDay()]}）`;
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showStatsDetailView, setShowStatsDetailView] = useState(false);
@@ -1708,7 +1712,15 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
     const uniquePrescriptionItemCount = new Set(assignedSections.flatMap((section) => section.items.map((item) => item.id))).size;
     return <div className="flex h-full min-h-0 flex-col bg-slate-50 text-slate-900" data-dashboard-layout="task-center" data-prescription-group-count={prescriptionGroups.length} data-prescription-item-count={prescriptionItemCount} data-prescription-unique-composite-id-count={uniquePrescriptionItemCount} data-questionnaire-history-count={questionnaireHistory.length}>
       <header className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3"><button type="button" onClick={onBack} aria-label="返回健康數據" className="rounded-full p-1 text-slate-600 hover:bg-slate-100"><ChevronLeft className="h-6 w-6" /></button><h1 className="text-lg font-black">綠色處方</h1><div className="w-8" /></header>
-      <div className="shrink-0 space-y-3 border-b border-slate-200 bg-white px-4 py-4"><h2 className="text-sm font-black text-slate-600">本週綠色處方</h2><div className="text-3xl font-black">{greenPrescriptionProgress.completed} / {greenPrescriptionProgress.total}<span className="ml-2 text-sm font-bold text-slate-500">{greenPrescriptionProgress.percentage}%</span></div><div className="h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-orange-500" style={{ width: `${greenPrescriptionProgress.percentage}%` }} /></div><div className="grid grid-cols-2 gap-3 text-sm font-bold"><span>生活型態處方 {greenPrescriptionProgress.prescriptionCompleted} / {greenPrescriptionProgress.prescriptionTotal}</span><span>課程 {greenPrescriptionProgress.videoCompleted} / {greenPrescriptionProgress.videoTotal}</span></div></div>
+      <div className="shrink-0 space-y-2 border-b border-slate-200 bg-white px-4 py-3">
+        <div className="text-sm leading-5 text-slate-600">
+          <h2 className="font-black">本週綠色處方</h2>
+          <p className="font-medium" aria-label="本期任務週期">{formatPeriodDate(periodStartDate)}～{formatPeriodDate(getWeekEnd(periodStartDate))}</p>
+        </div>
+        <div className="text-3xl font-black">{greenPrescriptionProgress.completed} / {greenPrescriptionProgress.total}<span className="ml-2 text-sm font-bold text-slate-500">{greenPrescriptionProgress.percentage}%</span></div>
+        <div className="h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-orange-500" style={{ width: `${greenPrescriptionProgress.percentage}%` }} /></div>
+        <div className="grid grid-cols-2 gap-3 text-sm font-bold"><span>生活型態處方 {greenPrescriptionProgress.prescriptionCompleted} / {greenPrescriptionProgress.prescriptionTotal}</span><span>課程 {greenPrescriptionProgress.videoCompleted} / {greenPrescriptionProgress.videoTotal}</span></div>
+      </div>
       <nav className="flex shrink-0 overflow-x-auto border-b border-slate-200 bg-white" aria-label="綠色處方功能">{([['overview','總覽'],['videos','課程'],['questionnaire','生活問卷'],['prescriptions','專家處方'],['history','執行紀錄']] as const).map(([key,label]) => <button key={key} type="button" onClick={() => setActiveMainTab(key)} className={`shrink-0 flex-1 whitespace-nowrap border-b-2 px-3 py-3 text-sm font-black ${activeMainTab === key ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-600'}`}>{label}</button>)}</nav>
       <main onClick={(event) => { const target = (event.target as HTMLElement).closest('[data-history-period-id]'); if (target) setExpandedHistoryId(target.getAttribute('data-history-period-id')); }} className="min-h-0 flex-1 overflow-y-auto p-4 pb-10">
         {activeMainTab === 'overview' && <section className="space-y-5"><h2 className="text-base font-black">本週任務清單</h2>{isDoctorAssigned && <section className="rounded-2xl border border-orange-200 bg-white p-4"><div className="flex items-center justify-between"><div><h3 className="font-black">專家處方</h3><p className="mt-1 text-sm text-slate-600">已完成 {greenPrescriptionProgress.prescriptionCompleted} / {greenPrescriptionProgress.prescriptionTotal}，尚有 {Math.max(0, greenPrescriptionProgress.prescriptionTotal - greenPrescriptionProgress.prescriptionCompleted)} 項待完成</p></div><button type="button" onClick={() => setActiveMainTab('prescriptions')} className="text-xs font-bold text-orange-600">查看全部</button></div>{pendingPrescriptionGroups.map((group) => <div key={group.categoryTitle} className="mt-4 border-t border-slate-100 pt-3"><h4 className="text-sm font-black">{group.categoryTitle}</h4>{group.items.map((item) => <button key={item.id} type="button" data-overview-prescription-task-id={item.id} onClick={() => onTogglePrescriptionItem(group.id, item.id)} className="mt-2 flex w-full items-center gap-2 text-left text-sm text-slate-700"><span className="h-5 w-5 shrink-0 rounded border border-slate-300" />{item.title}</button>)}</div>)}</section>}<section className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-center justify-between"><span><span className="block font-black">推薦處方影片</span><span className="mt-1 block text-sm text-slate-600">已完成 {greenPrescriptionProgress.videoCompleted} / {greenPrescriptionProgress.videoTotal}，尚需 {Math.max(0, greenPrescriptionProgress.videoTotal - greenPrescriptionProgress.videoCompleted)} 部</span></span><ChevronRight className="h-5 w-5 text-slate-400" /></div><div className="mt-3 space-y-2">{tasks.filter((task) => task.type === 'video').slice(0, 5).map((video) => <button key={video.id} type="button" onClick={() => setActiveVideoId(video.id)} className="flex w-full items-center gap-2 text-left text-sm font-bold text-slate-700"><span>{video.completed ? '✓' : '▶'}</span>{video.title}</button>)}</div></section><button type="button" onClick={() => handleGoToQuestionnaire('form')} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left"><span><span className="block font-black">生活型態問卷</span><span className="mt-1 block text-sm font-bold text-slate-700">{isDoctorAssigned ? '如果想要調整關注類型，請重新填寫問卷並與醫師討論' : '請先填寫完問卷，醫師才能依照內容為您指派處方。'}</span></span><ChevronRight className="h-5 w-5 text-slate-400" /></button></section>}
