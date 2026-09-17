@@ -1,5 +1,5 @@
 export type PrescriptionLevel = 'basic' | 'enhanced';
-export interface PrescribedActionItem { id: string; category: string; title: string; completed: boolean; level?: PrescriptionLevel; }
+export interface PrescribedActionItem { id: string; category: string; title: string; completed: boolean; completedAt?: string; level?: PrescriptionLevel; }
 export interface DoctorPrescriptionSection { id: string; pillarKey: string; categoryTitle: string; items: PrescribedActionItem[]; }
 export interface PrescriptionCatalogItem { id: string; pillarKey: string; category: string; title: string; level: PrescriptionLevel; }
 
@@ -56,3 +56,20 @@ export function getDoctorPrescriptionSection(key: string, data: Record<string, D
 }
 
 export const INITIAL_DOCTOR_PRESCRIPTIONS: Record<string, DoctorPrescriptionSection> = {};
+
+// 同週重新指派以分類與穩定處方 ID 比對，只承接新清單仍存在的完成紀錄。
+export function inheritPrescriptionProgress(
+  next: Record<string, DoctorPrescriptionSection>,
+  previous: Record<string, DoctorPrescriptionSection>,
+): Record<string, DoctorPrescriptionSection> {
+  const completed = new Map(Object.values(previous).flatMap((section) =>
+    section.items.filter((item) => item.completed).map((item) =>
+      [`${normalizePillarKey(section.pillarKey)}:${item.id}`, item] as const)));
+  return Object.fromEntries(Object.entries(next).map(([key, section]) => [key, {
+    ...section,
+    items: section.items.map((item) => {
+      const prior = completed.get(`${normalizePillarKey(section.pillarKey)}:${item.id}`);
+      return { ...item, completed: Boolean(prior), completedAt: prior?.completedAt };
+    }),
+  }]));
+}
