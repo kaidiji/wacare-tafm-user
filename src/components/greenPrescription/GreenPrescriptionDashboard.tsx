@@ -1728,7 +1728,7 @@ export const GreenPrescriptionDashboard: React.FC<Props> = ({
       <div className="shrink-0 space-y-2 border-b border-slate-200 bg-white px-4 py-3">
         <div className="text-sm leading-5 text-slate-600">
           <h2 className="font-black">本期綠色處方</h2>
-          <p className="font-medium" aria-label="本期任務週期">{isDoctorAssigned ? `${formatPeriodDate(periodStartDate)}～${formatPeriodDate(getPeriodEnd(periodStartDate))}` : '專家指派處方後開始 30 天週期'}</p>
+          {isDoctorAssigned && <p className="font-medium" aria-label="本期任務週期">{formatPeriodDate(periodStartDate)}～{formatPeriodDate(getPeriodEnd(periodStartDate))}</p>}
         </div>
         <div className="text-3xl font-black">{greenPrescriptionProgress.completed} / {greenPrescriptionProgress.total}<span className="ml-2 text-sm font-bold text-slate-500">{greenPrescriptionProgress.percentage}%</span></div>
         <div className="h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-orange-500" style={{ width: `${greenPrescriptionProgress.percentage}%` }} /></div>
