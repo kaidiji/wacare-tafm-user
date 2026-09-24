@@ -35,43 +35,37 @@ export const LifestyleQuestionnaireFormScreen: React.FC<Props> = ({
       id: 'opt-1',
       label: '運動習慣',
       icon: '🏃‍♂️',
-      desc: '提升肌力與心肺耐力、防跌與下肢訓練',
-      details: '每週運動頻率、有氧與肌力阻抗訓練、久坐活動改善',
+      desc: '日常身體活動的安排與培養',
     },
     {
       id: 'opt-2',
       label: '飲食習慣',
       icon: '🥗',
-      desc: '低GI健康飲食、體脂與健腦營養管理',
-      details: '地中海飲食原則、每日彩虹蔬果攝取、少加工少精緻糖',
+      desc: '飲食內容與飲食行為的調整',
     },
     {
       id: 'opt-3',
       label: '睡眠品質',
       icon: '🌙',
-      desc: '改善夜尿中斷、建立深度好眠規律',
-      details: '規律就寢週期、改善入睡障礙、營造優質睡眠環境',
+      desc: '睡眠時間、規律性與睡眠品質的改善',
     },
     {
       id: 'opt-4',
       label: '壓力管理',
       icon: '🧘',
-      desc: '自律神經調節、放鬆減壓與大腦賦能',
-      details: '腹式呼吸放鬆訓練、日常情緒察覺、減輕慢性焦慮疲憊',
+      desc: '壓力調適與情緒管理的方法',
     },
     {
       id: 'opt-5',
-      label: '戒菸／戒酒／戒檳榔',
+      label: '戒菸 / 戒酒 / 戒檳榔',
       icon: '🚭',
-      desc: '成癮物質戒斷、健康生活替代策略',
-      details: '戒菸與減害諮詢、健康生活替代策略、心血管健康保護',
+      desc: '減少或避免使用菸、酒、檳榔等危害性物質',
     },
     {
       id: 'opt-6',
       label: '增加人際互動',
       icon: '👥',
-      desc: '提升大腦認知防失智、社群互動交流',
-      details: '多元社交連結、線上志工與互動交流、活化大腦心智',
+      desc: '人際關係與社會參與的維持與改善',
     },
   ];
 
@@ -175,10 +169,10 @@ export const LifestyleQuestionnaireFormScreen: React.FC<Props> = ({
             <div className="space-y-3">
               <div className="text-sm font-black text-slate-900 leading-snug flex items-start justify-between">
                 <span>
-                  1. 您目前最希望由醫師與專家協助改善的生活型態面向為何？（可複選）
+                  1. 您目前最希望由醫師與專家協助改善的生活型態面向為何？
                 </span>
                 <span className="text-red-600 text-xs font-black shrink-0 ml-1">
-                  (必填)
+                  （必填）
                 </span>
               </div>
 

@@ -33,11 +33,27 @@ import {
   isPeriodDue,
   buildSettlementSnapshot,
   hasSettleableActivity,
-  getWeekStart,
-  getWeekEnd,
+  getPeriodEnd,
 } from './components/greenPrescription/greenPrescriptionHistory';
 
 import { QuestionnaireScreen } from './components/QuestionnaireScreen';
+
+interface LifestyleQuestionnaireData {
+  goals: string[];
+  history: LifestyleQuestionnaireRecord[];
+}
+
+const QUESTIONNAIRE_STORAGE_KEY = 'wacare_lifestyle_questionnaire_data';
+
+function loadQuestionnaireData(): LifestyleQuestionnaireData {
+  try {
+    const stored = JSON.parse(localStorage.getItem(QUESTIONNAIRE_STORAGE_KEY) || 'null');
+    if (Array.isArray(stored?.goals) && Array.isArray(stored?.history)) return stored;
+  } catch {
+    /* fall through to the empty questionnaire state */
+  }
+  return { goals: [], history: [] };
+}
 
 export function App() {
   // 預設登入狀態並直接進入 Home 主頁 ('SCR-03')
@@ -71,15 +87,9 @@ export function App() {
   const [isConsentCompleted, setIsConsentCompleted] = useState<boolean>(false);
 
   // 生活型態目標與處方影片狀態（預設一開始尚未填寫問卷，等填寫完畢由後台專家派送）
-  const [isQuestionnaireSubmitted, setIsQuestionnaireSubmitted] = useState<boolean>(false);
+  const [isQuestionnaireSubmitted, setIsQuestionnaireSubmitted] = useState<boolean>(() => loadQuestionnaireData().history.length > 0);
   const [isPrescriptionDispatched, setIsPrescriptionDispatched] = useState<boolean>(false);
-  const [questionnaireData, setQuestionnaireData] = useState<{
-    goals: string[];
-    history: LifestyleQuestionnaireRecord[];
-  }>({
-    goals: [],
-    history: [],
-  });
+  const [questionnaireData, setQuestionnaireData] = useState<LifestyleQuestionnaireData>(() => loadQuestionnaireData());
   const submittedGoals = questionnaireData.goals;
   const [assignedGoals, setAssignedGoals] = useState<string[]>([]);
   // A cycle exposes at most five selectable videos; the weekly progress target
@@ -132,7 +142,7 @@ export function App() {
     }));
   }, [videoTasks]);
   const handleVideoViewed = (videoId: string) => {
-    settleWeekIfDue();
+    settlePeriodIfDue();
     setVideoViewHistory((prev) => [...prev, { id: `${videoId}-${Date.now()}`, videoId, viewedAt: new Date().toISOString() }]);
   };
 
@@ -180,8 +190,16 @@ export function App() {
     savePeriodStart(recordingPeriodStart);
   }, [recordingPeriodStart]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(QUESTIONNAIRE_STORAGE_KEY, JSON.stringify(questionnaireData));
+    } catch {
+      /* ignore persistence failure */
+    }
+  }, [questionnaireData]);
+
   const handleTogglePrescriptionItem = (pillarKey: string, itemId: string) => {
-    settleWeekIfDue();
+    settlePeriodIfDue();
     setDoctorPrescriptions((prev) => {
       const normalized = normalizePillarKey(pillarKey);
       const section =
@@ -292,56 +310,38 @@ export function App() {
 
   const questionnaireHistory = questionnaireData.history;
 
-  // 每次操作先結算；同一 render 的影片回呼或 StrictMode effect 不重複結算。
-  function settleWeekIfDue(now = new Date()): boolean {
-    if (!isPeriodDue(recordingPeriodStart, now)) return false;
+  // 專家指派處方後才啟用 30 天週期；同一週期不重複結算。
+  function settlePeriodIfDue(now = new Date()): boolean {
+    if (!isPrescriptionDispatched || !isPeriodDue(recordingPeriodStart, now)) return false;
     if (settledPeriodRef.current === recordingPeriodStart) return true;
     settledPeriodRef.current = recordingPeriodStart;
-    const activePrescriptions = isPrescriptionDispatched ? doctorPrescriptions : {};
-    if (hasSettleableActivity({ videoTasks, doctorPrescriptions: activePrescriptions })) {
+    if (hasSettleableActivity({ videoTasks, doctorPrescriptions })) {
       const snapshot = buildSettlementSnapshot({
         periodStartIso: recordingPeriodStart,
-        now: getWeekEnd(new Date(recordingPeriodStart)),
+        now: getPeriodEnd(new Date(recordingPeriodStart)),
         videoTasks,
-        doctorPrescriptions: activePrescriptions,
-        expertName: isPrescriptionDispatched ? '示範診所' : undefined,
+        doctorPrescriptions,
+        expertName: '示範診所',
       });
       setHistoricalSnapshots((prev) => [snapshot, ...prev]);
-      saveHistoricalSnapshots([snapshot, ...historicalSnapshots]);
     }
-    const nextStart = getWeekStart(now).toISOString();
-    const resetVideos = videoTasks.map((task) => ({ ...task, completed: false }));
-    // Demo 未指派狀態仍可能載有舊處方，跨週也需清除其完成狀態。
-    const resetPrescriptions: Record<string, DoctorPrescriptionSection> = Object.fromEntries(
-      Object.entries<DoctorPrescriptionSection>(doctorPrescriptions).map(([key, section]) => [key, {
-        ...section, items: section.items.map((item) => ({ ...item, completed: false, completedAt: undefined })),
-      }]),
-    );
-    setVideoTasks(resetVideos);
-    setDoctorPrescriptions(resetPrescriptions);
+    const nextStart = now.toISOString();
     setRecordingPeriodStart(nextStart);
-    try {
-      localStorage.setItem('wacare_doctor_prescriptions', JSON.stringify(resetPrescriptions));
-      localStorage.setItem('wacare_green_prescription_video_cycle', JSON.stringify({
-        cycleId: nextStart, selectionMode: 'random', tasks: resetVideos,
-      }));
-    } catch { /* ignore persistence failure */ }
     savePeriodStart(nextStart);
     return true;
   }
 
   useEffect(() => {
-    const check = () => { settleWeekIfDue(); };
+    if (!isPrescriptionDispatched) return;
+    const check = () => { settlePeriodIfDue(); };
     check();
-    const nextMonday = getWeekStart(new Date());
-    nextMonday.setDate(nextMonday.getDate() + 7);
-    const timer = setTimeout(check, Math.max(1, nextMonday.getTime() - Date.now()));
+    const timer = window.setInterval(check, 24 * 60 * 60 * 1000);
     window.addEventListener('focus', check);
     return () => {
-      clearTimeout(timer);
+      window.clearInterval(timer);
       window.removeEventListener('focus', check);
     };
-  }, [isPrescriptionDispatched, recordingPeriodStart, videoTasks, doctorPrescriptions, historicalSnapshots]);
+  }, [isPrescriptionDispatched, recordingPeriodStart, videoTasks, doctorPrescriptions]);
 
   // 模擬專家診所從後台派送處方與訊息 (使用者明確要求：按此按鍵才派送訊息跟處方)
   const handleDispatchPrescription = () => {
@@ -364,9 +364,9 @@ export function App() {
     // 紀錄刷新規則：醫師派發新處方時，立即將先前累積的活動（含舊處方最新進度與本次派送前
     // 觀看的影片）結算成一筆歷史紀錄，並開始新的記錄週期。
     const settledAt = new Date();
-    const crossedWeek = settleWeekIfDue(settledAt);
+    const settledPeriod = settlePeriodIfDue(settledAt);
     const priorDoctorPrescriptions = isPrescriptionDispatched ? doctorPrescriptions : {};
-    if (!crossedWeek && hasSettleableActivity({ videoTasks, doctorPrescriptions: priorDoctorPrescriptions })) {
+    if (!settledPeriod && hasSettleableActivity({ videoTasks, doctorPrescriptions: priorDoctorPrescriptions })) {
       const settlementSnapshot = buildSettlementSnapshot({
         periodStartIso: recordingPeriodStart,
         now: settledAt,
@@ -377,7 +377,6 @@ export function App() {
       setHistoricalSnapshots((prev) => [settlementSnapshot, ...prev]);
     }
     setRecordingPeriodStart(settledAt.toISOString());
-    setVideoTasks((prev) => prev.map((task) => ({ ...task, completed: false })));
     setHasPendingPrescription(false);
 
     setQuestionnaireData((current) => ({
@@ -388,7 +387,7 @@ export function App() {
     setAssignedGoals(targetGoals);
     const nextPrescriptions = inheritPrescriptionProgress(
       assignedPrescriptionSnapshot,
-      crossedWeek ? {} : priorDoctorPrescriptions,
+      priorDoctorPrescriptions,
     );
     setDoctorPrescriptions(nextPrescriptions);
     try {
@@ -430,7 +429,7 @@ export function App() {
   };
 
   const handleToggleVideoTask = (id: string) => {
-    settleWeekIfDue();
+    settlePeriodIfDue();
     setVideoTasks((prev) => {
       const existing = prev.find((task) => task.id === id);
       if (existing) return prev.map((task) => (task.id === id ? { ...task, completed: !task.completed } : task));

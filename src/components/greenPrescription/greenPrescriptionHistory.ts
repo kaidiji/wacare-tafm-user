@@ -2,10 +2,8 @@ import { DoctorPrescriptionSection } from './doctorPrescriptionsData';
 import { DEFAULT_WEEKLY_VIDEO_TARGET, VideoTask } from './greenPrescriptionData';
 
 // 執行紀錄規則（2026/09 調整）：
-// 1. 放棄即時記錄，改為週期性結算 —— 純影片觀看週期以「週」為單位（週一至週日）結算一次；
-//    醫師派發新處方時則立即結算目前週期。
-// 2. 每當醫師根據新問卷派發一次新處方，系統即「重新整理」：
-//    將此前累積的活動（觀看影片、舊處方執行進度）結算成一筆歷史紀錄，並開始新的記錄週期。
+// 1. 專家第一次派發處方後才開始記錄週期。
+// 2. 每個週期為 30 天；到期或專家派發新處方時，結算目前週期並保留累積進度。
 
 export interface HistorySnapshotTaskItem {
   id: string;
@@ -28,22 +26,12 @@ export interface HistoricalSnapshot {
 const HISTORY_SNAPSHOT_VERSION = 3;
 const HISTORY_STORAGE_KEY = 'wacare_green_prescription_history';
 const PERIOD_START_STORAGE_KEY = 'wacare_green_prescription_period_start';
+export const PRESCRIPTION_PERIOD_DAYS = 30;
 
-// 週期以「週一至週日」為一個結算週，而非指派後固定 7 天倒數；達成率、結算日期
-// 一律以該週的週日為終點計算，而非以系統實際檢查到期的當下時間為準。
-export function getWeekStart(date: Date): Date {
-  const weekStart = new Date(date);
-  weekStart.setHours(0, 0, 0, 0);
-  const day = weekStart.getDay(); // 0 = 週日 ... 6 = 週六
-  const diffToMonday = day === 0 ? 6 : day - 1;
-  weekStart.setDate(weekStart.getDate() - diffToMonday);
-  return weekStart;
-}
-
-export function getWeekEnd(date: Date): Date {
-  const weekEnd = getWeekStart(date);
-  weekEnd.setDate(weekEnd.getDate() + 6); // 週日
-  return weekEnd;
+export function getPeriodEnd(date: Date): Date {
+  const periodEnd = new Date(date);
+  periodEnd.setDate(periodEnd.getDate() + PRESCRIPTION_PERIOD_DAYS - 1);
+  return periodEnd;
 }
 
 const DEMO_HISTORY_TASK_DEFINITIONS = [
@@ -106,13 +94,13 @@ export function loadPeriodStart(): string {
   } catch {
     /* ignore and fall through */
   }
-  const weekStart = getWeekStart(new Date()).toISOString();
+  const periodStart = new Date().toISOString();
   try {
-    localStorage.setItem(PERIOD_START_STORAGE_KEY, weekStart);
+    localStorage.setItem(PERIOD_START_STORAGE_KEY, periodStart);
   } catch {
     /* ignore persistence failure */
   }
-  return weekStart;
+  return periodStart;
 }
 
 export function savePeriodStart(iso: string): void {
@@ -126,7 +114,9 @@ export function savePeriodStart(iso: string): void {
 export function isPeriodDue(periodStartIso: string, now: Date = new Date()): boolean {
   const start = new Date(periodStartIso);
   if (Number.isNaN(start.getTime())) return false;
-  return getWeekStart(now).getTime() > getWeekStart(start).getTime();
+  const dueAt = new Date(start);
+  dueAt.setDate(dueAt.getDate() + PRESCRIPTION_PERIOD_DAYS);
+  return now.getTime() >= dueAt.getTime();
 }
 
 function formatHistoryDate(date: Date): string {
@@ -165,7 +155,7 @@ export function buildSettlementSnapshot(params: {
   expertName?: string;
 }): HistoricalSnapshot {
   const now = params.now ?? new Date();
-  // 課程進度以每週目標（DEFAULT_WEEKLY_VIDEO_TARGET）為分母，與畫面上「課程（每週目標）」
+  // 課程進度沿用既有目標（DEFAULT_WEEKLY_VIDEO_TARGET）為分母，
   // 的算法一致，而不是取當週可選影片池的總數。
   const videoTotal = DEFAULT_WEEKLY_VIDEO_TARGET;
   const videoCompletedRaw = new Set(params.videoTasks.filter((task) => task.completed).map((task) => task.id)).size;
