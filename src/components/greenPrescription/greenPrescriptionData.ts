@@ -28,6 +28,7 @@ export interface VideoTask {
 }
 
 export const DEFAULT_WEEKLY_VIDEO_TARGET = 3;
+export const RECOMMENDED_VIDEO_COUNT = 5;
 
 export interface GreenPrescriptionWeekStats {
   weekLabel: string;
@@ -507,6 +508,58 @@ const DEMO_COURSE_VIDEOS: VideoTask[] = [
 // Green Prescription pillar (30 total). Legacy core tasks remain available to
 // older screens but are not merged into this canonical pool.
 export const ALL_COURSE_VIDEO_TASKS: VideoTask[] = [...ALL_CORE_VIDEO_TASKS, ...DEMO_COURSE_VIDEOS];
+
+const normalizeVideoCategory = (value: string): string => {
+  const normalized = value.trim().replaceAll('/', '／').replace(/\s+/g, '');
+  if (normalized.includes('戒菸') || normalized.includes('戒酒') || normalized.includes('戒檳榔') || normalized.includes('危害物質')) return '戒菸／戒酒／戒檳榔';
+  if (normalized.includes('人際') || normalized.includes('社交') || normalized.includes('社會連結')) return '增加人際互動';
+  if (normalized.includes('運動') || normalized.includes('身體活動')) return '運動習慣';
+  if (normalized.includes('飲食')) return '飲食習慣';
+  if (normalized.includes('睡眠')) return '睡眠品質';
+  if (normalized.includes('壓力')) return '壓力管理';
+  return value;
+};
+
+const shuffled = <T,>(items: T[], random: () => number): T[] => {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(random() * (index + 1));
+    [result[index], result[target]] = [result[target], result[index]];
+  }
+  return result;
+};
+
+/**
+ * 每次固定推薦五部影片。六個面向全選時，隨機取五個面向且各推薦一部；
+ * 少於五個面向時，以輪替方式從所選面向補足五部。
+ */
+export function selectRecommendedVideoTasks(
+  categories: string[],
+  random: () => number = Math.random,
+): VideoTask[] {
+  const normalizedCategories = Array.from(new Set(categories.map(normalizeVideoCategory)))
+    .filter((category) => ALL_COURSE_VIDEO_TASKS.some((task) => task.category === category));
+  const selectedCategories = normalizedCategories.length > RECOMMENDED_VIDEO_COUNT
+    ? shuffled(normalizedCategories, random).slice(0, RECOMMENDED_VIDEO_COUNT)
+    : normalizedCategories;
+
+  if (selectedCategories.length === 0) {
+    return shuffled(ALL_COURSE_VIDEO_TASKS, random)
+      .slice(0, RECOMMENDED_VIDEO_COUNT)
+      .map((task) => ({ ...task, completed: false }));
+  }
+
+  const queues = selectedCategories.map((category) =>
+    shuffled(ALL_COURSE_VIDEO_TASKS.filter((task) => task.category === category), random));
+  const selected: VideoTask[] = [];
+  while (selected.length < RECOMMENDED_VIDEO_COUNT && queues.some((queue) => queue.length > 0)) {
+    queues.forEach((queue) => {
+      const task = queue.shift();
+      if (task && selected.length < RECOMMENDED_VIDEO_COUNT) selected.push(task);
+    });
+  }
+  return selected.map((task) => ({ ...task, completed: false }));
+}
 
 // 預設一開始就加載完整的核心課程影片清單，無需先填問卷
 export const INITIAL_VIDEO_TASKS: VideoTask[] = [...ALL_COURSE_VIDEO_TASKS];

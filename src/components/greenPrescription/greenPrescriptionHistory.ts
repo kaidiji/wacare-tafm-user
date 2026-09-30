@@ -1,9 +1,10 @@
 import { DoctorPrescriptionSection } from './doctorPrescriptionsData';
-import { DEFAULT_WEEKLY_VIDEO_TARGET, VideoTask } from './greenPrescriptionData';
+import { VideoTask } from './greenPrescriptionData';
 
 // 執行紀錄規則（2026/09 調整）：
 // 1. 專家第一次派發處方後才開始記錄週期。
-// 2. 每個週期為 30 天；到期或專家派發新處方時，結算目前週期並保留累積進度。
+// 2. 每個週期為 30 天；自動跨期保留處方勾選，專家重新派發時清空新一期處方勾選。
+// 3. 影片只保存觀看紀錄，不列入生活型態處方完成率。
 
 export interface HistorySnapshotTaskItem {
   id: string;
@@ -155,11 +156,9 @@ export function buildSettlementSnapshot(params: {
   expertName?: string;
 }): HistoricalSnapshot {
   const now = params.now ?? new Date();
-  // 課程進度沿用既有目標（DEFAULT_WEEKLY_VIDEO_TARGET）為分母，
-  // 的算法一致，而不是取當週可選影片池的總數。
-  const videoTotal = DEFAULT_WEEKLY_VIDEO_TARGET;
-  const videoCompletedRaw = new Set(params.videoTasks.filter((task) => task.completed).map((task) => task.id)).size;
-  const videoCompleted = Math.min(videoTotal, videoCompletedRaw);
+  // 影片不列入處方完成率，但歷史紀錄仍保存實際推薦數與觀看數。
+  const videoTotal = new Set(params.videoTasks.map((task) => task.id)).size;
+  const videoCompleted = new Set(params.videoTasks.filter((task) => task.completed).map((task) => task.id)).size;
   const prescriptionTaskSnapshot = buildPrescriptionTaskSnapshot(params.doctorPrescriptions);
   return {
     snapshotVersion: HISTORY_SNAPSHOT_VERSION,

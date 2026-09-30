@@ -16,13 +16,14 @@ import { GreenPrescriptionCoursesScreen } from './components/greenPrescription/G
 import {
   VideoTask,
   ALL_COURSE_VIDEO_TASKS,
+  RECOMMENDED_VIDEO_COUNT,
+  selectRecommendedVideoTasks,
 } from './components/greenPrescription/greenPrescriptionData';
 import {
   DoctorPrescriptionSection,
   normalizePillarKey,
   getDoctorPrescriptionSection,
   buildAssignedPrescription,
-  inheritPrescriptionProgress,
 } from './components/greenPrescription/doctorPrescriptionsData';
 import {
   HistoricalSnapshot,
@@ -44,6 +45,8 @@ interface LifestyleQuestionnaireData {
 }
 
 const QUESTIONNAIRE_STORAGE_KEY = 'wacare_lifestyle_questionnaire_data';
+const QUESTIONNAIRE_REMINDER_STORAGE_KEY = 'wacare_green_prescription_questionnaire_reminder_due';
+const VIDEO_HISTORY_STORAGE_KEY = 'wacare_green_prescription_video_view_history';
 
 function loadQuestionnaireData(): LifestyleQuestionnaireData {
   try {
@@ -97,42 +100,18 @@ export function App() {
   const [videoTasks, setVideoTasks] = useState<VideoTask[]>(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('wacare_green_prescription_video_cycle') || 'null');
-      if (stored?.cycleId && Array.isArray(stored.tasks) && stored.tasks.length > 0) {
-        // Demo reload resets viewing state, while retaining the assigned cycle.
-        return stored.tasks.map((task: VideoTask) => ({ ...task, completed: false }));
+      if (stored?.cycleId && Array.isArray(stored.tasks) && stored.tasks.length === RECOMMENDED_VIDEO_COUNT) {
+        return stored.tasks.map((task: VideoTask) => ({ ...task }));
       }
     } catch { /* fall back to the deterministic catalogue */ }
-    const goals = questionnaireData.goals;
-    const coursePool = ALL_COURSE_VIDEO_TASKS;
-    const categoryWords: Record<string, string[]> = {
-      飲食習慣: ['飲食'], diet: ['飲食'],
-      運動習慣: ['運動', '身體活動'], physical_activity: ['運動', '身體活動'],
-      睡眠品質: ['睡眠'], sleep: ['睡眠'],
-      壓力管理: ['壓力'], stress_management: ['壓力'],
-      增加人際互動: ['人際', '社交', '社會'], positive_social_connection: ['人際', '社交', '社會'],
-      '戒菸／戒酒／戒檳榔': ['戒菸', '戒酒', '檳榔', '危害'], harmful_substance_avoidance: ['戒菸', '戒酒', '檳榔', '危害'],
-    };
-    if (goals.length === 0) {
-      return [...coursePool].sort(() => Math.random() - 0.5).slice(0, 5).map((task) => ({ ...task }));
-    }
-    const selected = new Set<string>();
-    const matched = goals.flatMap((goal) => {
-      const words = categoryWords[goal] ?? [goal];
-      return coursePool.filter((task) => words.some((word) => task.category.includes(word)));
-    });
-    // Round-robin the matched goals so one category cannot consume all five slots.
-    const queues = goals.map((goal) => matched.filter((task) => (categoryWords[goal] ?? [goal]).some((word) => task.category.includes(word))));
-    for (let index = 0; selected.size < 5 && queues.length > 0; index += 1) {
-      const queue = queues[index % queues.length];
-      const candidate = queue.shift();
-      if (candidate && !selected.has(candidate.id)) selected.add(candidate.id);
-      if (queues.every((items) => items.length === 0)) break;
-    }
-    const fallback = coursePool.filter((task) => !selected.has(task.id));
-    fallback.forEach((task) => { if (selected.size < 5) selected.add(task.id); });
-    return coursePool.filter((task) => selected.has(task.id)).map((task) => ({ ...task }));
+    return selectRecommendedVideoTasks(questionnaireData.goals);
   });
-  const [videoViewHistory, setVideoViewHistory] = useState<VideoViewRecord[]>([]);
+  const [videoViewHistory, setVideoViewHistory] = useState<VideoViewRecord[]>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(VIDEO_HISTORY_STORAGE_KEY) || '[]');
+      return Array.isArray(stored) ? stored : [];
+    } catch { return []; }
+  });
   const videoCompleted = new Set(videoTasks.filter((task) => task.completed).map((task) => task.id)).size;
   useEffect(() => {
     localStorage.setItem('wacare_green_prescription_video_cycle', JSON.stringify({
@@ -141,6 +120,9 @@ export function App() {
       tasks: videoTasks,
     }));
   }, [videoTasks]);
+  useEffect(() => {
+    localStorage.setItem(VIDEO_HISTORY_STORAGE_KEY, JSON.stringify(videoViewHistory));
+  }, [videoViewHistory]);
   const handleVideoViewed = (videoId: string) => {
     settlePeriodIfDue();
     setVideoViewHistory((prev) => [...prev, { id: `${videoId}-${Date.now()}`, videoId, viewedAt: new Date().toISOString() }]);
@@ -174,6 +156,8 @@ export function App() {
   const [recordingPeriodStart, setRecordingPeriodStart] = useState<string>(() => loadPeriodStart());
   // 新問卷等待審核期間，舊處方仍可繼續執行。
   const [hasPendingPrescription, setHasPendingPrescription] = useState(false);
+  const [questionnaireReminderDue, setQuestionnaireReminderDue] = useState(() =>
+    localStorage.getItem(QUESTIONNAIRE_REMINDER_STORAGE_KEY) === 'true');
   const settledPeriodRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -197,6 +181,10 @@ export function App() {
       /* ignore persistence failure */
     }
   }, [questionnaireData]);
+
+  useEffect(() => {
+    localStorage.setItem(QUESTIONNAIRE_REMINDER_STORAGE_KEY, String(questionnaireReminderDue));
+  }, [questionnaireReminderDue]);
 
   const handleTogglePrescriptionItem = (pillarKey: string, itemId: string) => {
     settlePeriodIfDue();
@@ -270,6 +258,14 @@ export function App() {
   const handleSubmitQuestionnaire = (goals: string[]) => {
     setIsQuestionnaireSubmitted(true);
     setHasPendingPrescription(true);
+    setQuestionnaireReminderDue(false);
+    setVideoTasks((currentTasks) => {
+      const completedById = new Map(currentTasks.map((task) => [task.id, task.completed]));
+      return selectRecommendedVideoTasks(goals).map((task) => ({
+        ...task,
+        completed: completedById.get(task.id) ?? false,
+      }));
+    });
     const submittedAt = new Date();
     const padDatePart = (value: number) => String(value).padStart(2, '0');
     const completedAt = `${submittedAt.getFullYear()}/${padDatePart(submittedAt.getMonth() + 1)}/${padDatePart(submittedAt.getDate())} ${padDatePart(submittedAt.getHours())}:${padDatePart(submittedAt.getMinutes())}`;
@@ -328,6 +324,7 @@ export function App() {
     const nextStart = now.toISOString();
     setRecordingPeriodStart(nextStart);
     savePeriodStart(nextStart);
+    setQuestionnaireReminderDue(true);
     return true;
   }
 
@@ -378,6 +375,7 @@ export function App() {
     }
     setRecordingPeriodStart(settledAt.toISOString());
     setHasPendingPrescription(false);
+    setQuestionnaireReminderDue(false);
 
     setQuestionnaireData((current) => ({
       ...current,
@@ -385,10 +383,8 @@ export function App() {
     }));
     setIsQuestionnaireSubmitted(true);
     setAssignedGoals(targetGoals);
-    const nextPrescriptions = inheritPrescriptionProgress(
-      assignedPrescriptionSnapshot,
-      priorDoctorPrescriptions,
-    );
+    // 醫師重新派發代表新一期，所有處方勾選一律重新開始。
+    const nextPrescriptions = assignedPrescriptionSnapshot;
     setDoctorPrescriptions(nextPrescriptions);
     try {
       localStorage.setItem('wacare_doctor_prescriptions', JSON.stringify(nextPrescriptions));
@@ -746,6 +742,7 @@ export function App() {
               onToggleVideoTask={handleToggleVideoTask}
               historicalSnapshots={historicalSnapshots}
               recordingPeriodStart={recordingPeriodStart}
+              questionnaireReminderDue={questionnaireReminderDue}
             />
           )}
 

@@ -1,4 +1,4 @@
-import { DEFAULT_WEEKLY_VIDEO_TARGET, VideoTask } from './greenPrescriptionData';
+import { VideoTask } from './greenPrescriptionData';
 import { DoctorPrescriptionSection } from './doctorPrescriptionsData';
 
 export interface GreenPrescriptionProgress {
@@ -34,10 +34,11 @@ export function calculateGreenPrescriptionProgress({
   const prescriptionTotal = prescriptionItems.length;
   const prescriptionCompleted = Math.min(prescriptionTotal, prescriptionItems.filter((item) => item.completed).length);
   const activeVideoTasks = Array.from(new Map(videoTasks.map((task) => [task.id, task])).values());
-  const videoTotal = DEFAULT_WEEKLY_VIDEO_TARGET;
-  const videoCompleted = Math.min(videoTotal, activeVideoTasks.filter((task) => task.completed).length);
-  const total = prescriptionTotal + videoTotal;
-  const completed = prescriptionCompleted + videoCompleted;
+  const videoTotal = activeVideoTasks.length;
+  const videoCompleted = activeVideoTasks.filter((task) => task.completed).length;
+  // 影片僅保留觀看紀錄，不列入生活型態處方完成率。
+  const total = prescriptionTotal;
+  const completed = prescriptionCompleted;
   return {
     prescriptionTotal,
     prescriptionCompleted,

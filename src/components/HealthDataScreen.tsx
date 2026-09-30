@@ -506,14 +506,16 @@ export const HealthDataScreen: React.FC<Props> = ({
                   >
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <span className="font-black text-slate-900 text-[1rem] group-hover:text-orange-600 transition-colors">
-                        綠色處方燈 {greenPrescriptionProgress.percentage}%
+                        {isPrescriptionDispatched ? `綠色處方燈 ${greenPrescriptionProgress.percentage}%` : '綠色處方燈'}
                       </span>
-                      <div className="w-[6.5rem] sm:w-[9rem] bg-slate-200 h-[0.5rem] rounded-full overflow-hidden border border-slate-300">
-                        <div
-                          className="bg-orange-500 h-full transition-all duration-300 shadow-xs"
-                          style={{ width: `${greenPrescriptionProgress.percentage}%` }}
-                        />
-                      </div>
+                      {isPrescriptionDispatched && (
+                        <div className="w-[6.5rem] sm:w-[9rem] bg-slate-200 h-[0.5rem] rounded-full overflow-hidden border border-slate-300">
+                          <div
+                            className="bg-orange-500 h-full transition-all duration-300 shadow-xs"
+                            style={{ width: `${greenPrescriptionProgress.percentage}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="min-w-[48px] min-h-[48px] flex items-center justify-center text-slate-500 group-hover:text-orange-600 transition-colors">
                       <ChevronRight className="w-[1.5rem] h-[1.5rem]" />
